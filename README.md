@@ -52,7 +52,7 @@ mvn clean compile
 mvn spring-boot:run
 ```
 
-The service starts on `http://localhost:8080`.
+The service starts on `http://localhost:9990`.
 
 ### Docker
 
@@ -61,7 +61,7 @@ The service starts on `http://localhost:8080`.
 docker build -t rock-metadata-service .
 
 # Run with external PostgreSQL
-docker run -d -p 8080:8080 \
+docker run -d -p 9990:9990 \
   -e SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/rock_metadata \
   -e SPRING_DATASOURCE_USERNAME=postgres \
   -e SPRING_DATASOURCE_PASSWORD=postgres \
@@ -110,7 +110,7 @@ docker compose up -d
 
 ```bash
 # Register datasource
-curl -X POST http://localhost:8080/api/datasources \
+curl -X POST http://localhost:9990/api/datasources \
   -H "Content-Type: application/json" \
   -d '{
     "name": "my_database",
@@ -123,17 +123,17 @@ curl -X POST http://localhost:8080/api/datasources \
   }'
 
 # Trigger crawl (returns job with id)
-curl -X POST http://localhost:8080/api/datasources/1/crawl \
+curl -X POST http://localhost:9990/api/datasources/1/crawl \
   -H "Content-Type: application/json" \
   -d '{"infoLevel": "detailed"}'
 
 # Check crawl status
-curl http://localhost:8080/api/crawl-jobs/1
+curl http://localhost:9990/api/crawl-jobs/1
 
 # Browse metadata
-curl http://localhost:8080/api/datasources/1/schemas
-curl http://localhost:8080/api/datasources/1/tables
-curl http://localhost:8080/api/tables/1
+curl http://localhost:9990/api/datasources/1/schemas
+curl http://localhost:9990/api/datasources/1/tables
+curl http://localhost:9990/api/tables/1
 ```
 
 ## Crawl Info Levels

@@ -18,7 +18,7 @@ services:
   app:
     build: .
     ports:
-      - "8080:8080"
+      - "9990:9990"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/rock_metadata
       SPRING_DATASOURCE_USERNAME: postgres
