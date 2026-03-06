@@ -7,4 +7,6 @@ import java.util.List;
 public interface MetaTriggerRepository extends JpaRepository<MetaTrigger, Long> {
 
     List<MetaTrigger> findByTableId(Long tableId);
+
+    void deleteByTableIdIn(List<Long> tableIds);
 }

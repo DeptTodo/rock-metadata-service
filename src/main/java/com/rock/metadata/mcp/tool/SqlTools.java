@@ -15,14 +15,16 @@ public class SqlTools {
     private final SqlExecuteService sqlExecuteService;
 
     @Tool(description = "Execute a SQL query or statement on a datasource. " +
-            "Returns columns and rows for queries, or affected row count for statements.")
+            "Returns columns and rows for queries, or affected row count for statements. " +
+            "Use with caution: this executes raw SQL against the target database.")
     public SqlExecuteResponse execute_sql(
             @ToolParam(description = "Datasource ID") Long datasourceId,
             @ToolParam(description = "SQL query or statement to execute") String sql) {
         try {
             return sqlExecuteService.execute(datasourceId, sql);
         } catch (ResponseStatusException e) {
-            throw new RuntimeException(e.getReason());
+            throw new IllegalArgumentException(
+                    "SQL execution failed: " + e.getReason());
         }
     }
 }

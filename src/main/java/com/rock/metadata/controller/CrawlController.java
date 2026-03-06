@@ -6,6 +6,7 @@ import com.rock.metadata.model.DataSourceConfig;
 import com.rock.metadata.repository.CrawlJobRepository;
 import com.rock.metadata.repository.DataSourceConfigRepository;
 import com.rock.metadata.service.CrawlService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -26,7 +27,7 @@ public class CrawlController {
     @PostMapping("/datasources/{datasourceId}/crawl")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public CrawlJob triggerCrawl(@PathVariable Long datasourceId,
-                                 @RequestBody(required = false) CrawlRequest request) {
+                                 @Valid @RequestBody(required = false) CrawlRequest request) {
         DataSourceConfig dsConfig = dataSourceRepository.findById(datasourceId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "DataSource not found"));

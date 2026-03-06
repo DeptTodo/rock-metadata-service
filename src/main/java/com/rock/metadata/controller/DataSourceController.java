@@ -69,6 +69,9 @@ public class DataSourceController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {
+        if (!repository.existsById(id)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "DataSource not found");
+        }
         repository.deleteById(id);
     }
 }

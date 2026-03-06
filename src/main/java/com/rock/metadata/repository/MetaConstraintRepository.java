@@ -7,4 +7,6 @@ import java.util.List;
 public interface MetaConstraintRepository extends JpaRepository<MetaConstraint, Long> {
 
     List<MetaConstraint> findByTableId(Long tableId);
+
+    void deleteByTableIdIn(List<Long> tableIds);
 }

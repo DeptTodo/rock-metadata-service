@@ -1,7 +1,9 @@
 package com.rock.metadata.service;
 
 import com.rock.metadata.dto.SqlExecuteResponse;
+import com.rock.metadata.dto.TableRowCount;
 import com.rock.metadata.model.DataSourceConfig;
+import com.rock.metadata.model.MetaTable;
 import com.rock.metadata.repository.DataSourceConfigRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,17 +24,20 @@ public class SqlExecuteService {
 
     private final DataSourceConfigRepository dataSourceConfigRepository;
 
+    private static final int MAX_ROWS = 10000;
+
     public SqlExecuteResponse execute(Long datasourceId, String sql) {
         DataSourceConfig ds = dataSourceConfigRepository.findById(datasourceId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "DataSource not found"));
 
-        String jdbcUrl = buildJdbcUrl(ds);
-        log.info("Executing SQL on datasource {}: {}", datasourceId, sql);
+        String jdbcUrl = JdbcUrlBuilder.buildJdbcUrl(ds);
+        log.info("Executing SQL on datasource {}", datasourceId);
 
         try (Connection conn = DriverManager.getConnection(jdbcUrl, ds.getUsername(), ds.getPassword());
              Statement stmt = conn.createStatement()) {
 
+            stmt.setMaxRows(MAX_ROWS);
             boolean isQuery = stmt.execute(sql);
             SqlExecuteResponse response = new SqlExecuteResponse();
             response.setQuery(isQuery);
@@ -66,35 +71,65 @@ public class SqlExecuteService {
 
         } catch (SQLException e) {
             log.error("SQL execution failed on datasource {}", datasourceId, e);
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "SQL execution failed: " + e.getSQLState());
         }
     }
 
-    private String buildJdbcUrl(DataSourceConfig ds) {
-        if (ds.getJdbcUrl() != null && !ds.getJdbcUrl().isBlank()) {
-            return ds.getJdbcUrl();
+    public List<TableRowCount> countTableRows(Long datasourceId, List<MetaTable> tables) {
+        DataSourceConfig ds = dataSourceConfigRepository.findById(datasourceId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "DataSource not found"));
+
+        String jdbcUrl = JdbcUrlBuilder.buildJdbcUrl(ds);
+        String dbType = ds.getDbType().toLowerCase();
+        List<TableRowCount> results = new ArrayList<>();
+
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, ds.getUsername(), ds.getPassword());
+             Statement stmt = conn.createStatement()) {
+
+            for (MetaTable table : tables) {
+                TableRowCount rc = new TableRowCount();
+                rc.setTableId(table.getId());
+                rc.setSchemaName(table.getSchemaName());
+                rc.setTableName(table.getTableName());
+                rc.setFullName(table.getFullName());
+
+                String countSql = buildCountSql(dbType, table.getSchemaName(), table.getTableName());
+                try (ResultSet rs = stmt.executeQuery(countSql)) {
+                    if (rs.next()) {
+                        rc.setRowCount(rs.getLong(1));
+                    }
+                } catch (SQLException e) {
+                    log.warn("Failed to count rows for table {}: {}", table.getFullName(), e.getMessage());
+                    rc.setError(e.getMessage());
+                }
+                results.add(rc);
+            }
+        } catch (SQLException e) {
+            log.error("Failed to connect to datasource {}", datasourceId, e);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Failed to connect: " + e.getMessage());
         }
-        String host = ds.getHost() != null ? ds.getHost() : "localhost";
-        return switch (ds.getDbType().toLowerCase()) {
-            case "postgresql", "postgres" -> {
-                int port = ds.getPort() != null ? ds.getPort() : 5432;
-                yield "jdbc:postgresql://%s:%d/%s".formatted(host, port, ds.getDatabaseName());
-            }
-            case "mysql" -> {
-                int port = ds.getPort() != null ? ds.getPort() : 3306;
-                yield "jdbc:mysql://%s:%d/%s".formatted(host, port, ds.getDatabaseName());
-            }
-            case "oracle" -> {
-                int port = ds.getPort() != null ? ds.getPort() : 1521;
-                yield "jdbc:oracle:thin:@%s:%d/%s".formatted(host, port, ds.getDatabaseName());
-            }
-            case "sqlserver" -> {
-                int port = ds.getPort() != null ? ds.getPort() : 1433;
-                yield "jdbc:sqlserver://%s:%d;databaseName=%s;trustServerCertificate=true"
-                        .formatted(host, port, ds.getDatabaseName());
-            }
-            case "sqlite" -> "jdbc:sqlite:%s".formatted(ds.getDatabaseName());
-            default -> throw new IllegalArgumentException("Unsupported database type: " + ds.getDbType());
+
+        return results;
+    }
+
+    private String buildCountSql(String dbType, String schemaName, String tableName) {
+        String quotedTable = quoteIdentifier(dbType, tableName);
+        if (schemaName != null && !schemaName.isBlank()) {
+            String quotedSchema = quoteIdentifier(dbType, schemaName);
+            return "SELECT COUNT(*) FROM " + quotedSchema + "." + quotedTable;
+        }
+        return "SELECT COUNT(*) FROM " + quotedTable;
+    }
+
+    private String quoteIdentifier(String dbType, String identifier) {
+        return switch (dbType) {
+            case "mysql" -> "`" + identifier.replace("`", "``") + "`";
+            case "sqlserver" -> "[" + identifier.replace("]", "]]") + "]";
+            default -> "\"" + identifier.replace("\"", "\"\"") + "\"";
         };
     }
+
 }

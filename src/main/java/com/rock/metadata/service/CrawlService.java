@@ -20,12 +20,16 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class CrawlService {
+
+    private final Set<Long> activeCrawls = ConcurrentHashMap.newKeySet();
 
     private final CrawlJobRepository crawlJobRepository;
     private final MetaSchemaRepository metaSchemaRepository;
@@ -52,13 +56,22 @@ public class CrawlService {
     @Async
     @Transactional
     public void executeCrawl(CrawlJob job, DataSourceConfig dsConfig) {
-        job.setStatus(CrawlStatus.RUNNING);
-        job.setStartedAt(LocalDateTime.now());
-        crawlJobRepository.save(job);
+        Long datasourceId = dsConfig.getId();
+        if (!activeCrawls.add(datasourceId)) {
+            job.setStatus(CrawlStatus.FAILED);
+            job.setErrorMessage("A crawl is already running for this datasource");
+            job.setFinishedAt(LocalDateTime.now());
+            crawlJobRepository.save(job);
+            return;
+        }
 
         try {
+            job.setStatus(CrawlStatus.RUNNING);
+            job.setStartedAt(LocalDateTime.now());
+            crawlJobRepository.save(job);
+
             Catalog catalog = crawlDatabase(dsConfig, job.getInfoLevel());
-            persistCatalog(catalog, dsConfig.getId(), job.getId());
+            persistCatalog(catalog, datasourceId, job.getId());
 
             job.setStatus(CrawlStatus.SUCCESS);
             job.setTableCount(catalog.getTables().size());
@@ -77,43 +90,96 @@ public class CrawlService {
         } finally {
             job.setFinishedAt(LocalDateTime.now());
             crawlJobRepository.save(job);
+            activeCrawls.remove(datasourceId);
         }
     }
 
     private Catalog crawlDatabase(DataSourceConfig ds, String infoLevel) {
-        String jdbcUrl = buildJdbcUrl(ds);
-        log.info("Crawling database: {}", jdbcUrl);
+        String jdbcUrl = JdbcUrlBuilder.buildJdbcUrl(ds);
+        log.info("Crawling datasource: {} (type={})", ds.getName(), ds.getDbType());
 
         DatabaseConnectionSource connectionSource =
                 DatabaseConnectionSources.newDatabaseConnectionSource(jdbcUrl,
                         new MultiUseUserCredentials(ds.getUsername(), ds.getPassword()));
 
-        SchemaInfoLevel schemaInfoLevel = switch (infoLevel) {
-            case "minimum" -> SchemaInfoLevelBuilder.minimum();
-            case "standard" -> SchemaInfoLevelBuilder.standard();
-            case "detailed" -> SchemaInfoLevelBuilder.detailed();
-            default -> SchemaInfoLevelBuilder.maximum();
-        };
+        try {
+            SchemaInfoLevel schemaInfoLevel = switch (infoLevel) {
+                case "minimum" -> SchemaInfoLevelBuilder.minimum();
+                case "standard" -> SchemaInfoLevelBuilder.standard();
+                case "detailed" -> SchemaInfoLevelBuilder.detailed();
+                default -> SchemaInfoLevelBuilder.maximum();
+            };
 
-        LimitOptionsBuilder limitBuilder = LimitOptionsBuilder.builder()
-                .includeAllRoutines()
-                .includeAllSequences()
-                .includeAllSynonyms();
+            LimitOptionsBuilder limitBuilder = LimitOptionsBuilder.builder()
+                    .includeAllRoutines()
+                    .includeAllSequences()
+                    .includeAllSynonyms();
 
-        if (ds.getSchemaPatterns() != null && !ds.getSchemaPatterns().isBlank()) {
-            limitBuilder.includeSchemas(
-                    new RegularExpressionInclusionRule(ds.getSchemaPatterns()));
+            if (ds.getSchemaPatterns() != null && !ds.getSchemaPatterns().isBlank()) {
+                try {
+                    limitBuilder.includeSchemas(
+                            new RegularExpressionInclusionRule(ds.getSchemaPatterns()));
+                } catch (Exception e) {
+                    throw new IllegalArgumentException(
+                            "Invalid schema pattern regex: " + ds.getSchemaPatterns(), e);
+                }
+            }
+
+            SchemaCrawlerOptions options = SchemaCrawlerOptionsBuilder.newSchemaCrawlerOptions()
+                    .withLimitOptions(limitBuilder.toOptions())
+                    .withLoadOptions(LoadOptionsBuilder.builder()
+                            .withSchemaInfoLevel(schemaInfoLevel).toOptions());
+
+            return SchemaCrawlerUtility.getCatalog(connectionSource, options);
+        } finally {
+            try {
+                connectionSource.close();
+            } catch (Exception e) {
+                log.warn("Failed to close connection source", e);
+            }
         }
+    }
 
-        SchemaCrawlerOptions options = SchemaCrawlerOptionsBuilder.newSchemaCrawlerOptions()
-                .withLimitOptions(limitBuilder.toOptions())
-                .withLoadOptions(LoadOptionsBuilder.builder()
-                        .withSchemaInfoLevel(schemaInfoLevel).toOptions());
+    private void cleanupPreviousCrawlData(Long datasourceId, Long currentCrawlJobId) {
+        crawlJobRepository
+                .findFirstByDatasourceIdAndStatusOrderByFinishedAtDesc(
+                        datasourceId, CrawlStatus.SUCCESS)
+                .ifPresent(previousJob -> {
+                    Long prevJobId = previousJob.getId();
+                    if (prevJobId.equals(currentCrawlJobId)) return;
 
-        return SchemaCrawlerUtility.getCatalog(connectionSource, options);
+                    List<MetaTable> oldTables = metaTableRepository.findByCrawlJobId(prevJobId);
+                    List<Long> oldTableIds = oldTables.stream().map(MetaTable::getId).toList();
+
+                    if (!oldTableIds.isEmpty()) {
+                        metaColumnRepository.deleteByTableIdIn(oldTableIds);
+                        metaPrimaryKeyRepository.deleteByTableIdIn(oldTableIds);
+                        metaForeignKeyRepository.deleteByTableIdIn(oldTableIds);
+                        metaIndexRepository.deleteByTableIdIn(oldTableIds);
+                        metaTriggerRepository.deleteByTableIdIn(oldTableIds);
+                        metaConstraintRepository.deleteByTableIdIn(oldTableIds);
+                        metaPrivilegeRepository.deleteByTableIdIn(oldTableIds);
+                    }
+
+                    List<MetaRoutine> oldRoutines = metaRoutineRepository
+                            .findByDatasourceIdAndCrawlJobId(datasourceId, prevJobId);
+                    List<Long> oldRoutineIds = oldRoutines.stream().map(MetaRoutine::getId).toList();
+                    if (!oldRoutineIds.isEmpty()) {
+                        metaRoutineColumnRepository.deleteByRoutineIdIn(oldRoutineIds);
+                    }
+
+                    metaTableRepository.deleteByCrawlJobId(prevJobId);
+                    metaRoutineRepository.deleteByCrawlJobId(prevJobId);
+                    metaSequenceRepository.deleteByCrawlJobId(prevJobId);
+                    metaSchemaRepository.deleteByCrawlJobId(prevJobId);
+
+                    log.info("Cleaned up previous crawl data for job {}", prevJobId);
+                });
     }
 
     private void persistCatalog(Catalog catalog, Long datasourceId, Long crawlJobId) {
+        cleanupPreviousCrawlData(datasourceId, crawlJobId);
+
         // Schema name -> MetaSchema ID
         Map<String, Long> schemaIdMap = new HashMap<>();
         for (Schema schema : catalog.getSchemas()) {
@@ -132,8 +198,9 @@ public class CrawlService {
             MetaTable mt = new MetaTable();
             mt.setDatasourceId(datasourceId);
             mt.setCrawlJobId(crawlJobId);
-            mt.setSchemaId(schemaIdMap.get(table.getSchema().getFullName()));
-            mt.setSchemaName(table.getSchema().getFullName());
+            String schemaFullName = table.getSchema().getFullName();
+            mt.setSchemaId(schemaIdMap.getOrDefault(schemaFullName, null));
+            mt.setSchemaName(schemaFullName);
             mt.setTableName(table.getName());
             mt.setFullName(table.getFullName());
             mt.setTableType(table.getTableType().toString());
@@ -301,8 +368,9 @@ public class CrawlService {
             MetaRoutine mr = new MetaRoutine();
             mr.setDatasourceId(datasourceId);
             mr.setCrawlJobId(crawlJobId);
-            mr.setSchemaId(schemaIdMap.get(routine.getSchema().getFullName()));
-            mr.setSchemaName(routine.getSchema().getFullName());
+            String routineSchemaFullName = routine.getSchema().getFullName();
+            mr.setSchemaId(schemaIdMap.getOrDefault(routineSchemaFullName, null));
+            mr.setSchemaName(routineSchemaFullName);
             mr.setRoutineName(routine.getName());
             mr.setFullName(routine.getFullName());
             mr.setSpecificName(routine.getSpecificName());
@@ -320,8 +388,10 @@ public class CrawlService {
                 mrc.setRoutineId(routineId);
                 mrc.setColumnName(param.getName());
                 mrc.setOrdinalPosition(param.getOrdinalPosition());
-                mrc.setColumnType(param.getParameterMode().name());
-                mrc.setDataType(param.getColumnDataType().getName());
+                mrc.setColumnType(param.getParameterMode() != null
+                        ? param.getParameterMode().name() : null);
+                mrc.setDataType(param.getColumnDataType() != null
+                        ? param.getColumnDataType().getName() : null);
                 mrc.setPrecision(param.getPrecision());
                 mrc.setScale(param.getDecimalDigits());
                 mrc.setNullable(param.isNullable());
@@ -349,34 +419,6 @@ public class CrawlService {
             sequences.add(ms);
         }
         metaSequenceRepository.saveAll(sequences);
-    }
-
-    private String buildJdbcUrl(DataSourceConfig ds) {
-        if (ds.getJdbcUrl() != null && !ds.getJdbcUrl().isBlank()) {
-            return ds.getJdbcUrl();
-        }
-        String host = ds.getHost() != null ? ds.getHost() : "localhost";
-        return switch (ds.getDbType().toLowerCase()) {
-            case "postgresql", "postgres" -> {
-                int port = ds.getPort() != null ? ds.getPort() : 5432;
-                yield "jdbc:postgresql://%s:%d/%s".formatted(host, port, ds.getDatabaseName());
-            }
-            case "mysql" -> {
-                int port = ds.getPort() != null ? ds.getPort() : 3306;
-                yield "jdbc:mysql://%s:%d/%s".formatted(host, port, ds.getDatabaseName());
-            }
-            case "oracle" -> {
-                int port = ds.getPort() != null ? ds.getPort() : 1521;
-                yield "jdbc:oracle:thin:@%s:%d/%s".formatted(host, port, ds.getDatabaseName());
-            }
-            case "sqlserver" -> {
-                int port = ds.getPort() != null ? ds.getPort() : 1433;
-                yield "jdbc:sqlserver://%s:%d;databaseName=%s;trustServerCertificate=true"
-                        .formatted(host, port, ds.getDatabaseName());
-            }
-            case "sqlite" -> "jdbc:sqlite:%s".formatted(ds.getDatabaseName());
-            default -> throw new IllegalArgumentException("Unsupported database type: " + ds.getDbType());
-        };
     }
 
     private static String truncate(String s, int maxLen) {

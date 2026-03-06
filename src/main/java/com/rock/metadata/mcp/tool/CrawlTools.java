@@ -28,7 +28,7 @@ public class CrawlTools {
                     required = false) String infoLevel) {
 
         DataSourceConfig dsConfig = dataSourceRepository.findById(datasourceId)
-                .orElseThrow(() -> new RuntimeException("DataSource not found: " + datasourceId));
+                .orElseThrow(() -> new IllegalArgumentException("DataSource not found: " + datasourceId));
 
         String level = (infoLevel != null && !infoLevel.isBlank()) ? infoLevel : "maximum";
         CrawlJob job = crawlService.createJob(datasourceId, level);
@@ -41,7 +41,7 @@ public class CrawlTools {
     public CrawlJob get_crawl_job_status(
             @ToolParam(description = "Crawl job ID") Long jobId) {
         return crawlJobRepository.findById(jobId)
-                .orElseThrow(() -> new RuntimeException("CrawlJob not found: " + jobId));
+                .orElseThrow(() -> new IllegalArgumentException("CrawlJob not found: " + jobId));
     }
 
     @Tool(description = "List crawl jobs, optionally filtered by datasource ID")

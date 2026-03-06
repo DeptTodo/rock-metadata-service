@@ -2,8 +2,10 @@ package com.rock.metadata.controller;
 
 import com.rock.metadata.dto.SearchResult;
 import com.rock.metadata.dto.TableDetailResponse;
+import com.rock.metadata.dto.TableRowCount;
 import com.rock.metadata.model.*;
 import com.rock.metadata.service.MetadataQueryService;
+import com.rock.metadata.service.SqlExecuteService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,6 +17,7 @@ import java.util.List;
 public class MetadataController {
 
     private final MetadataQueryService queryService;
+    private final SqlExecuteService sqlExecuteService;
 
     /** List schemas for a datasource (latest successful crawl). */
     @GetMapping("/datasources/{datasourceId}/schemas")
@@ -49,6 +52,21 @@ public class MetadataController {
     @GetMapping("/tables/{tableId}/indexes")
     public List<MetaIndex> listIndexes(@PathVariable Long tableId) {
         return queryService.listIndexes(tableId);
+    }
+
+    /** Get row counts for tables in a datasource, optionally filtered by schema or table name. */
+    @GetMapping("/datasources/{datasourceId}/table-row-counts")
+    public List<TableRowCount> getTableRowCounts(
+            @PathVariable Long datasourceId,
+            @RequestParam(required = false) String schema,
+            @RequestParam(required = false) String tableName) {
+        List<MetaTable> tables = queryService.listTables(datasourceId, schema);
+        if (tableName != null && !tableName.isBlank()) {
+            tables = tables.stream()
+                    .filter(t -> t.getTableName().equalsIgnoreCase(tableName))
+                    .toList();
+        }
+        return sqlExecuteService.countTableRows(datasourceId, tables);
     }
 
     /** Search tables and columns by keyword across a datasource. */

@@ -37,6 +37,7 @@ public class MetaColumn {
     @Column(name = "decimal_digits")
     private int decimalDigits;
 
+    @Column(name = "is_nullable")
     private boolean nullable;
 
     @Column(name = "default_value")
@@ -45,8 +46,10 @@ public class MetaColumn {
     @Column(name = "auto_incremented")
     private boolean autoIncremented;
 
+    @Column(name = "is_generated")
     private boolean generated;
 
+    @Column(name = "is_hidden")
     private boolean hidden;
 
     /** Column definition / expression for generated columns */

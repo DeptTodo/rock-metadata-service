@@ -7,4 +7,6 @@ import java.util.List;
 public interface MetaPrivilegeRepository extends JpaRepository<MetaPrivilege, Long> {
 
     List<MetaPrivilege> findByTableId(Long tableId);
+
+    void deleteByTableIdIn(List<Long> tableIds);
 }

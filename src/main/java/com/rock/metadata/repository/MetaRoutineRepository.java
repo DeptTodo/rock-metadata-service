@@ -7,4 +7,6 @@ import java.util.List;
 public interface MetaRoutineRepository extends JpaRepository<MetaRoutine, Long> {
 
     List<MetaRoutine> findByDatasourceIdAndCrawlJobId(Long datasourceId, Long crawlJobId);
+
+    void deleteByCrawlJobId(Long crawlJobId);
 }

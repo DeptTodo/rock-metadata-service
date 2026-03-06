@@ -5,7 +5,10 @@ import com.rock.metadata.dto.TableDetailResponse;
 import com.rock.metadata.model.*;
 import com.rock.metadata.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,6 +17,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class MetadataQueryService {
 
     private final CrawlJobRepository crawlJobRepository;
@@ -35,7 +39,8 @@ public class MetadataQueryService {
                 .findFirstByDatasourceIdAndStatusOrderByFinishedAtDesc(
                         datasourceId, CrawlStatus.SUCCESS)
                 .map(CrawlJob::getId)
-                .orElseThrow(() -> new IllegalStateException(
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
                         "No successful crawl found for datasource " + datasourceId));
     }
 
@@ -54,7 +59,8 @@ public class MetadataQueryService {
 
     public TableDetailResponse getTableDetail(Long tableId) {
         MetaTable table = metaTableRepository.findById(tableId)
-                .orElseThrow(() -> new IllegalArgumentException("Table not found: " + tableId));
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Table not found: " + tableId));
 
         TableDetailResponse resp = new TableDetailResponse();
         resp.setTable(table);
@@ -81,6 +87,9 @@ public class MetadataQueryService {
     }
 
     public SearchResult search(Long datasourceId, String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            throw new IllegalArgumentException("Search keyword must not be blank");
+        }
         Long jobId = getLatestCrawlJobId(datasourceId);
         SearchResult result = new SearchResult();
 
@@ -99,7 +108,7 @@ public class MetadataQueryService {
         List<SearchResult.ColumnMatch> columnMatches = new ArrayList<>();
         for (MetaColumn col : matchedColumns) {
             SearchResult.ColumnMatch match = new SearchResult.ColumnMatch();
-            match.setTableFullName(tableNameMap.get(col.getTableId()));
+            match.setTableFullName(tableNameMap.getOrDefault(col.getTableId(), "unknown"));
             match.setColumn(col);
             columnMatches.add(match);
         }

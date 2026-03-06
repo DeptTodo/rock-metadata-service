@@ -52,7 +52,7 @@ public class DataSourceTools {
     public DataSourceConfig get_datasource(
             @ToolParam(description = "Datasource ID") Long datasourceId) {
         return repository.findById(datasourceId)
-                .orElseThrow(() -> new RuntimeException("DataSource not found: " + datasourceId));
+                .orElseThrow(() -> new IllegalArgumentException("DataSource not found: " + datasourceId));
     }
 
     @Tool(description = "Update an existing datasource configuration")
@@ -70,7 +70,7 @@ public class DataSourceTools {
             @ToolParam(description = "Description of this datasource", required = false) String description) {
 
         DataSourceConfig ds = repository.findById(datasourceId)
-                .orElseThrow(() -> new RuntimeException("DataSource not found: " + datasourceId));
+                .orElseThrow(() -> new IllegalArgumentException("DataSource not found: " + datasourceId));
         ds.setName(name);
         ds.setDbType(dbType);
         ds.setHost(host);
@@ -88,7 +88,7 @@ public class DataSourceTools {
     public String delete_datasource(
             @ToolParam(description = "Datasource ID to delete") Long datasourceId) {
         if (!repository.existsById(datasourceId)) {
-            throw new RuntimeException("DataSource not found: " + datasourceId);
+            throw new IllegalArgumentException("DataSource not found: " + datasourceId);
         }
         repository.deleteById(datasourceId);
         return "Datasource " + datasourceId + " deleted successfully";

@@ -7,4 +7,6 @@ import java.util.List;
 public interface MetaSequenceRepository extends JpaRepository<MetaSequence, Long> {
 
     List<MetaSequence> findByDatasourceIdAndCrawlJobId(Long datasourceId, Long crawlJobId);
+
+    void deleteByCrawlJobId(Long crawlJobId);
 }

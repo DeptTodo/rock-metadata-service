@@ -33,7 +33,9 @@ public class MetaRoutineColumn {
     @Column(name = "precision_value")
     private int precision;
 
+    @Column(name = "scale_value")
     private int scale;
 
+    @Column(name = "is_nullable")
     private boolean nullable;
 }
