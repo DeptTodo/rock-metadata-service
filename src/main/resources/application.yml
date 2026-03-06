@@ -1,0 +1,25 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: rock-metadata-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/rock_metadata
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    show-sql: false
+
+# Async thread pool for crawl jobs
+metadata:
+  crawl:
+    thread-pool-size: 5

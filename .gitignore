@@ -1,0 +1,29 @@
+# Build
+target/
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+
+# Java
+*.class
+*.jar
+*.war
+hs_err_pid*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+*.env.local
+
+# jenv
+.java-version
+
+# Claude
+.claude/

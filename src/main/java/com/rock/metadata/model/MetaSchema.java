@@ -1,0 +1,33 @@
+package com.rock.metadata.model;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+@Entity
+@Table(name = "meta_schema", uniqueConstraints = {
+    @UniqueConstraint(columnNames = {"crawl_job_id", "full_name"})
+})
+@Getter @Setter @NoArgsConstructor
+public class MetaSchema {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "datasource_id", nullable = false)
+    private Long datasourceId;
+
+    @Column(name = "crawl_job_id", nullable = false)
+    private Long crawlJobId;
+
+    @Column(name = "catalog_name")
+    private String catalogName;
+
+    @Column(name = "schema_name")
+    private String schemaName;
+
+    @Column(name = "full_name", nullable = false)
+    private String fullName;
+
+    private String remarks;
+}
