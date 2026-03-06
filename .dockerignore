@@ -1,0 +1,7 @@
+target/
+.idea/
+.claude/
+.git/
+*.iml
+.DS_Store
+.java-version

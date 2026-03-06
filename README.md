@@ -54,6 +54,26 @@ mvn spring-boot:run
 
 The service starts on `http://localhost:8080`.
 
+### Docker
+
+```bash
+# Build image
+docker build -t rock-metadata-service .
+
+# Run with external PostgreSQL
+docker run -d -p 8080:8080 \
+  -e SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/rock_metadata \
+  -e SPRING_DATASOURCE_USERNAME=postgres \
+  -e SPRING_DATASOURCE_PASSWORD=postgres \
+  rock-metadata-service
+```
+
+Or use Docker Compose to start everything together:
+
+```bash
+docker compose up -d
+```
+
 ## API Reference
 
 ### Datasource Management
