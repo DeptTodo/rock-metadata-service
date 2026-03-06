@@ -19,6 +19,14 @@ spring:
         format_sql: true
     show-sql: false
 
+  ai:
+    mcp:
+      server:
+        name: rock-metadata-service
+        version: 1.0.0
+        type: SYNC
+        sse-message-endpoint: /mcp/message
+
 # Async thread pool for crawl jobs
 metadata:
   crawl:

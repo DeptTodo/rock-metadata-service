@@ -1,5 +1,6 @@
 package com.rock.metadata.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -31,6 +32,7 @@ public class DataSourceConfig {
 
     private String username;
 
+    @JsonIgnore
     private String password;
 
     /** Optional: directly provide JDBC URL (overrides host/port/databaseName) */
