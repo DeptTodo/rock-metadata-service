@@ -12,4 +12,7 @@ public class TableDetailResponse {
     private List<MetaPrimaryKey> primaryKeys;
     private List<MetaForeignKey> foreignKeys;
     private List<MetaIndex> indexes;
+    private List<MetaTrigger> triggers;
+    private List<MetaConstraint> constraints;
+    private List<MetaPrivilege> privileges;
 }

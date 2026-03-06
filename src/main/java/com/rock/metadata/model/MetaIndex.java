@@ -31,4 +31,14 @@ public class MetaIndex {
 
     @Column(name = "is_unique")
     private boolean unique;
+
+    /** ASC, DESC */
+    @Column(name = "sort_sequence", length = 8)
+    private String sortSequence;
+
+    @Column(columnDefinition = "TEXT")
+    private String definition;
+
+    @Column(length = 4096)
+    private String remarks;
 }

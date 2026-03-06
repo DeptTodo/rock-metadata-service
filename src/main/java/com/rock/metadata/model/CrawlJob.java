@@ -33,6 +33,12 @@ public class CrawlJob {
     @Column(name = "column_count")
     private Integer columnCount;
 
+    @Column(name = "routine_count")
+    private Integer routineCount;
+
+    @Column(name = "sequence_count")
+    private Integer sequenceCount;
+
     @Column(name = "started_at")
     private LocalDateTime startedAt;
 

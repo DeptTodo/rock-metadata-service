@@ -23,6 +23,9 @@ public class MetadataQueryService {
     private final MetaPrimaryKeyRepository metaPrimaryKeyRepository;
     private final MetaForeignKeyRepository metaForeignKeyRepository;
     private final MetaIndexRepository metaIndexRepository;
+    private final MetaTriggerRepository metaTriggerRepository;
+    private final MetaConstraintRepository metaConstraintRepository;
+    private final MetaPrivilegeRepository metaPrivilegeRepository;
 
     /**
      * Get the latest successful crawl job ID for a datasource.
@@ -59,6 +62,9 @@ public class MetadataQueryService {
         resp.setPrimaryKeys(metaPrimaryKeyRepository.findByTableId(tableId));
         resp.setForeignKeys(metaForeignKeyRepository.findByTableId(tableId));
         resp.setIndexes(metaIndexRepository.findByTableId(tableId));
+        resp.setTriggers(metaTriggerRepository.findByTableId(tableId));
+        resp.setConstraints(metaConstraintRepository.findByTableId(tableId));
+        resp.setPrivileges(metaPrivilegeRepository.findByTableId(tableId));
         return resp;
     }
 

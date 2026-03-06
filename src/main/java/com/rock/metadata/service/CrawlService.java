@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -33,6 +34,12 @@ public class CrawlService {
     private final MetaPrimaryKeyRepository metaPrimaryKeyRepository;
     private final MetaForeignKeyRepository metaForeignKeyRepository;
     private final MetaIndexRepository metaIndexRepository;
+    private final MetaTriggerRepository metaTriggerRepository;
+    private final MetaConstraintRepository metaConstraintRepository;
+    private final MetaPrivilegeRepository metaPrivilegeRepository;
+    private final MetaRoutineRepository metaRoutineRepository;
+    private final MetaRoutineColumnRepository metaRoutineColumnRepository;
+    private final MetaSequenceRepository metaSequenceRepository;
 
     public CrawlJob createJob(Long datasourceId, String infoLevel) {
         CrawlJob job = new CrawlJob();
@@ -58,8 +65,11 @@ public class CrawlService {
             int colCount = catalog.getTables().stream()
                     .mapToInt(t -> t.getColumns().size()).sum();
             job.setColumnCount(colCount);
-            log.info("Crawl job {} completed: {} tables, {} columns",
-                    job.getId(), job.getTableCount(), colCount);
+            job.setRoutineCount(catalog.getRoutines().size());
+            job.setSequenceCount(catalog.getSequences().size());
+            log.info("Crawl job {} completed: {} tables, {} columns, {} routines, {} sequences",
+                    job.getId(), job.getTableCount(), colCount,
+                    job.getRoutineCount(), job.getSequenceCount());
         } catch (Exception e) {
             log.error("Crawl job {} failed", job.getId(), e);
             job.setStatus(CrawlStatus.FAILED);
@@ -136,7 +146,13 @@ public class CrawlService {
             persistPrimaryKey(table, tableId);
             persistForeignKeys(table, tableId);
             persistIndexes(table, tableId);
+            persistTriggers(table, tableId);
+            persistConstraints(table, tableId);
+            persistPrivileges(table, tableId);
         }
+
+        persistRoutines(catalog, datasourceId, crawlJobId, schemaIdMap);
+        persistSequences(catalog, datasourceId, crawlJobId);
     }
 
     private void persistColumns(Table table, Long tableId) {
@@ -147,12 +163,14 @@ public class CrawlService {
             mc.setColumnName(col.getName());
             mc.setOrdinalPosition(col.getOrdinalPosition());
             mc.setDataType(col.getColumnDataType().getName());
+            mc.setDbSpecificTypeName(col.getColumnDataType().getDatabaseSpecificTypeName());
             mc.setColumnSize(col.getSize());
             mc.setDecimalDigits(col.getDecimalDigits());
             mc.setNullable(col.isNullable());
             mc.setDefaultValue(col.getDefaultValue());
             mc.setAutoIncremented(col.isAutoIncremented());
             mc.setGenerated(col.isGenerated());
+            mc.setHidden(col.isHidden());
             mc.setPartOfPrimaryKey(col.isPartOfPrimaryKey());
             mc.setPartOfForeignKey(col.isPartOfForeignKey());
             mc.setPartOfIndex(col.isPartOfIndex());
@@ -211,10 +229,126 @@ public class CrawlService {
                 mi.setOrdinalPosition(col.getOrdinalPosition());
                 mi.setIndexType(index.getIndexType().toString());
                 mi.setUnique(index.isUnique());
+                mi.setSortSequence(col.getSortSequence().name());
+                mi.setDefinition(index.getDefinition());
+                mi.setRemarks(index.getRemarks());
                 indexes.add(mi);
             }
         }
         metaIndexRepository.saveAll(indexes);
+    }
+
+    private void persistTriggers(Table table, Long tableId) {
+        List<MetaTrigger> triggers = new ArrayList<>();
+        for (Trigger trigger : table.getTriggers()) {
+            MetaTrigger mt = new MetaTrigger();
+            mt.setTableId(tableId);
+            mt.setTriggerName(trigger.getName());
+            mt.setConditionTiming(trigger.getConditionTiming().name());
+            mt.setEventManipulationType(
+                trigger.getEventManipulationTypes().stream()
+                    .map(Enum::name)
+                    .collect(Collectors.joining(","))
+            );
+            mt.setActionOrientation(trigger.getActionOrientation().name());
+            mt.setActionCondition(trigger.getActionCondition());
+            mt.setActionStatement(trigger.getActionStatement());
+            mt.setActionOrder(trigger.getActionOrder());
+            triggers.add(mt);
+        }
+        metaTriggerRepository.saveAll(triggers);
+    }
+
+    private void persistConstraints(Table table, Long tableId) {
+        List<MetaConstraint> constraints = new ArrayList<>();
+        for (TableConstraint constraint : table.getTableConstraints()) {
+            MetaConstraint mc = new MetaConstraint();
+            mc.setTableId(tableId);
+            mc.setConstraintName(constraint.getName());
+            mc.setConstraintType(constraint.getType().name());
+            mc.setColumnNames(
+                constraint.getConstrainedColumns().stream()
+                    .map(TableConstraintColumn::getName)
+                    .collect(Collectors.joining(","))
+            );
+            mc.setDefinition(constraint.getDefinition());
+            mc.setDeferrable(constraint.isDeferrable());
+            mc.setInitiallyDeferred(constraint.isInitiallyDeferred());
+            constraints.add(mc);
+        }
+        metaConstraintRepository.saveAll(constraints);
+    }
+
+    private void persistPrivileges(Table table, Long tableId) {
+        List<MetaPrivilege> privileges = new ArrayList<>();
+        for (Privilege<Table> priv : table.getPrivileges()) {
+            for (Grant<Table> grant : priv.getGrants()) {
+                MetaPrivilege mp = new MetaPrivilege();
+                mp.setTableId(tableId);
+                mp.setPrivilegeType(priv.getName());
+                mp.setGrantor(grant.getGrantor());
+                mp.setGrantee(grant.getGrantee());
+                mp.setGrantable(grant.isGrantable());
+                privileges.add(mp);
+            }
+        }
+        metaPrivilegeRepository.saveAll(privileges);
+    }
+
+    private void persistRoutines(Catalog catalog, Long datasourceId, Long crawlJobId,
+                                 Map<String, Long> schemaIdMap) {
+        for (Routine routine : catalog.getRoutines()) {
+            MetaRoutine mr = new MetaRoutine();
+            mr.setDatasourceId(datasourceId);
+            mr.setCrawlJobId(crawlJobId);
+            mr.setSchemaId(schemaIdMap.get(routine.getSchema().getFullName()));
+            mr.setSchemaName(routine.getSchema().getFullName());
+            mr.setRoutineName(routine.getName());
+            mr.setFullName(routine.getFullName());
+            mr.setSpecificName(routine.getSpecificName());
+            mr.setRoutineType(routine.getRoutineType().name());
+            mr.setReturnType(routine.getReturnType() != null
+                    ? routine.getReturnType().toString() : null);
+            mr.setDefinition(routine.getDefinition());
+            mr.setRemarks(routine.getRemarks());
+            mr = metaRoutineRepository.save(mr);
+
+            Long routineId = mr.getId();
+            List<MetaRoutineColumn> cols = new ArrayList<>();
+            for (RoutineParameter<?> param : routine.getParameters()) {
+                MetaRoutineColumn mrc = new MetaRoutineColumn();
+                mrc.setRoutineId(routineId);
+                mrc.setColumnName(param.getName());
+                mrc.setOrdinalPosition(param.getOrdinalPosition());
+                mrc.setColumnType(param.getParameterMode().name());
+                mrc.setDataType(param.getColumnDataType().getName());
+                mrc.setPrecision(param.getPrecision());
+                mrc.setScale(param.getDecimalDigits());
+                mrc.setNullable(param.isNullable());
+                cols.add(mrc);
+            }
+            metaRoutineColumnRepository.saveAll(cols);
+        }
+    }
+
+    private void persistSequences(Catalog catalog, Long datasourceId, Long crawlJobId) {
+        List<MetaSequence> sequences = new ArrayList<>();
+        for (Sequence seq : catalog.getSequences()) {
+            MetaSequence ms = new MetaSequence();
+            ms.setDatasourceId(datasourceId);
+            ms.setCrawlJobId(crawlJobId);
+            ms.setSchemaName(seq.getSchema().getFullName());
+            ms.setSequenceName(seq.getName());
+            ms.setFullName(seq.getFullName());
+            ms.setStartValue(seq.getStartValue());
+            ms.setIncrement(seq.getIncrement());
+            ms.setMinimumValue(seq.getMinimumValue());
+            ms.setMaximumValue(seq.getMaximumValue());
+            ms.setCycle(seq.isCycle());
+            ms.setRemarks(seq.getRemarks());
+            sequences.add(ms);
+        }
+        metaSequenceRepository.saveAll(sequences);
     }
 
     private String buildJdbcUrl(DataSourceConfig ds) {

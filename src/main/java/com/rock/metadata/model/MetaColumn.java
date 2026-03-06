@@ -27,6 +27,10 @@ public class MetaColumn {
     @Column(name = "data_type", length = 128)
     private String dataType;
 
+    /** Database-specific type name, e.g. "character varying", "int4" */
+    @Column(name = "db_specific_type_name", length = 256)
+    private String dbSpecificTypeName;
+
     @Column(name = "column_size")
     private int columnSize;
 
@@ -42,6 +46,12 @@ public class MetaColumn {
     private boolean autoIncremented;
 
     private boolean generated;
+
+    private boolean hidden;
+
+    /** Column definition / expression for generated columns */
+    @Column(name = "column_definition", columnDefinition = "TEXT")
+    private String columnDefinition;
 
     @Column(name = "part_of_primary_key")
     private boolean partOfPrimaryKey;
