@@ -6,5 +6,11 @@
     "defaultMode": "bypassPermissions"
   },
   "alwaysThinkingEnabled": true,
-  "teammateMode": "in-process"
+  "teammateMode": "in-process",
+  "mcpServers": {
+    "rock-metadata": {
+      "type": "sse",
+      "url": "http://localhost:9990/sse"
+    }
+  }
 }

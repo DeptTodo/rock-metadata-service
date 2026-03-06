@@ -32,6 +32,7 @@ public class MetaConstraint {
     @Column(columnDefinition = "TEXT")
     private String definition;
 
+    @Column(name = "is_deferrable")
     private boolean deferrable;
 
     @Column(name = "initially_deferred")

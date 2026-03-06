@@ -32,8 +32,8 @@ public class MetaIndex {
     @Column(name = "is_unique")
     private boolean unique;
 
-    /** ASC, DESC */
-    @Column(name = "sort_sequence", length = 8)
+    /** ASC, DESC, etc. */
+    @Column(name = "sort_sequence", length = 32)
     private String sortSequence;
 
     @Column(columnDefinition = "TEXT")
