@@ -16,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -35,8 +34,6 @@ public class RelationshipService {
 
         // Load all tables and FKs for this crawl job
         List<MetaTable> allTables = metaTableRepository.findByCrawlJobId(rootTable.getCrawlJobId());
-        Map<String, MetaTable> tableByFullName = allTables.stream()
-                .collect(Collectors.toMap(MetaTable::getFullName, t -> t, (a, b) -> a));
         Map<Long, List<MetaForeignKey>> fksByTableId = loadForeignKeys(allTables);
 
         // Build outgoing (this table references) and incoming (references this table) maps
@@ -125,8 +122,6 @@ public class RelationshipService {
                         HttpStatus.NOT_FOUND, "Table not found: " + tableId));
 
         List<MetaTable> allTables = metaTableRepository.findByCrawlJobId(rootTable.getCrawlJobId());
-        Map<Long, MetaTable> tableById = allTables.stream()
-                .collect(Collectors.toMap(MetaTable::getId, t -> t, (a, b) -> a));
         Map<Long, List<MetaForeignKey>> fksByTableId = loadForeignKeys(allTables);
 
         // Build incoming FK index (table fullName -> list of FKs that reference it)
