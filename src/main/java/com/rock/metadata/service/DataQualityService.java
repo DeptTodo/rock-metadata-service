@@ -29,6 +29,7 @@ public class DataQualityService {
     private final QualityRuleRepository qualityRuleRepository;
     private final ColumnQualityRuleRepository columnQualityRuleRepository;
     private final DataSourceConfigRepository dataSourceConfigRepository;
+    private final TargetDataSourceManager targetDataSourceManager;
 
     // ===== QualityRule CRUD =====
 
@@ -176,14 +177,14 @@ public class DataQualityService {
         }
 
         String dbType = ds.getDbType().toLowerCase();
-        String jdbcUrl = JdbcUrlBuilder.buildJdbcUrl(ds);
+
         String qualifiedTable = JdbcUrlBuilder.qualifyTable(dbType, schemaName, tableName);
         String quotedCol = JdbcUrlBuilder.quoteIdentifier(dbType, columnName);
 
         List<QualityCheckResult> results = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
 
-        try (Connection conn = DriverManager.getConnection(jdbcUrl, ds.getUsername(), ds.getPassword())) {
+        try (Connection conn = targetDataSourceManager.getConnection(ds)) {
             long totalRows = getTotalRows(conn, qualifiedTable);
 
             for (ColumnQualityRule binding : bindings) {
@@ -240,13 +241,13 @@ public class DataQualityService {
         }
 
         String dbType = ds.getDbType().toLowerCase();
-        String jdbcUrl = JdbcUrlBuilder.buildJdbcUrl(ds);
+
         String qualifiedTable = JdbcUrlBuilder.qualifyTable(dbType, schemaName, tableName);
         LocalDateTime now = LocalDateTime.now();
 
         List<ColumnQualityCheckResponse> responses = new ArrayList<>();
 
-        try (Connection conn = DriverManager.getConnection(jdbcUrl, ds.getUsername(), ds.getPassword())) {
+        try (Connection conn = targetDataSourceManager.getConnection(ds)) {
             long totalRows = getTotalRows(conn, qualifiedTable);
 
             for (var entry : byColumn.entrySet()) {

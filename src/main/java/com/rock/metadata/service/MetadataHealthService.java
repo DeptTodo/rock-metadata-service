@@ -33,6 +33,7 @@ public class MetadataHealthService {
     private final MetaTableRepository metaTableRepository;
     private final DataSourceConfigRepository dataSourceConfigRepository;
     private final ConnectionTestService connectionTestService;
+    private final TargetDataSourceManager targetDataSourceManager;
 
     public MetadataHealthResponse checkHealth(Long datasourceId) {
         DataSourceConfig ds = dataSourceConfigRepository.findById(datasourceId)
@@ -102,8 +103,7 @@ public class MetadataHealthService {
     }
 
     private Integer countLiveTables(DataSourceConfig ds) {
-        String jdbcUrl = JdbcUrlBuilder.buildJdbcUrl(ds);
-        try (Connection conn = DriverManager.getConnection(jdbcUrl, ds.getUsername(), ds.getPassword())) {
+        try (Connection conn = targetDataSourceManager.getConnection(ds)) {
             DatabaseMetaData meta = conn.getMetaData();
             try (ResultSet rs = meta.getTables(null, null, "%", new String[]{"TABLE", "VIEW"})) {
                 int count = 0;

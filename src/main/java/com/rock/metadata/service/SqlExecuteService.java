@@ -23,6 +23,7 @@ import java.util.Map;
 public class SqlExecuteService {
 
     private final DataSourceConfigRepository dataSourceConfigRepository;
+    private final TargetDataSourceManager targetDataSourceManager;
 
     private static final int MAX_ROWS = 10000;
 
@@ -38,11 +39,10 @@ public class SqlExecuteService {
                         HttpStatus.NOT_FOUND, "DataSource not found"));
 
         int effectiveMaxRows = Math.min(Math.max(maxRows, 1), MAX_ROWS);
-        String jdbcUrl = JdbcUrlBuilder.buildJdbcUrl(ds);
         log.info("Executing SQL on datasource {}: {}", datasourceId,
                 sql == null ? "null" : sql.substring(0, Math.min(sql.length(), 200)));
 
-        try (Connection conn = DriverManager.getConnection(jdbcUrl, ds.getUsername(), ds.getPassword());
+        try (Connection conn = targetDataSourceManager.getConnection(ds);
              Statement stmt = conn.createStatement()) {
 
             // Fetch one extra row to detect truncation
@@ -98,11 +98,10 @@ public class SqlExecuteService {
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "DataSource not found"));
 
-        String jdbcUrl = JdbcUrlBuilder.buildJdbcUrl(ds);
         String dbType = ds.getDbType().toLowerCase();
         List<TableRowCount> results = new ArrayList<>();
 
-        try (Connection conn = DriverManager.getConnection(jdbcUrl, ds.getUsername(), ds.getPassword());
+        try (Connection conn = targetDataSourceManager.getConnection(ds);
              Statement stmt = conn.createStatement()) {
 
             for (MetaTable table : tables) {

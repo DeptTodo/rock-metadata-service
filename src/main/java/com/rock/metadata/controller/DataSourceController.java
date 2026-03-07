@@ -6,6 +6,7 @@ import com.rock.metadata.dto.DataSourceRequest;
 import com.rock.metadata.model.DataSourceConfig;
 import com.rock.metadata.repository.DataSourceConfigRepository;
 import com.rock.metadata.service.ConnectionTestService;
+import com.rock.metadata.service.TargetDataSourceManager;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -21,6 +22,7 @@ public class DataSourceController {
 
     private final DataSourceConfigRepository repository;
     private final ConnectionTestService connectionTestService;
+    private final TargetDataSourceManager targetDataSourceManager;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -67,7 +69,9 @@ public class DataSourceController {
         ds.setPassword(req.getPassword());
         ds.setJdbcUrl(req.getJdbcUrl());
         ds.setSchemaPatterns(req.getSchemaPatterns());
-        return repository.save(ds);
+        DataSourceConfig saved = repository.save(ds);
+        targetDataSourceManager.evict(id);
+        return saved;
     }
 
     @DeleteMapping("/{id}")
@@ -77,6 +81,7 @@ public class DataSourceController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "DataSource not found");
         }
         repository.deleteById(id);
+        targetDataSourceManager.evict(id);
     }
 
     @PostMapping("/{id}/test-connection")

@@ -11,6 +11,14 @@ spring:
     username: postgres
     password: postgres
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      max-lifetime: 1800000
+      connection-timeout: 5000
+      leak-detection-threshold: 60000
+      pool-name: rock-metadata-pool
   jpa:
     hibernate:
       ddl-auto: update

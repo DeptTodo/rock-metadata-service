@@ -31,6 +31,7 @@ public class DataProfilingService {
     private final DataSourceConfigRepository dataSourceConfigRepository;
     private final MetaTableRepository metaTableRepository;
     private final MetaColumnRepository metaColumnRepository;
+    private final TargetDataSourceManager targetDataSourceManager;
 
     public TableProfileResponse profileTable(Long datasourceId, Long tableId, List<String> columns) {
         DataSourceConfig ds = dataSourceConfigRepository.findById(datasourceId)
@@ -48,14 +49,14 @@ public class DataProfilingService {
         }
 
         String dbType = ds.getDbType().toLowerCase();
-        String jdbcUrl = JdbcUrlBuilder.buildJdbcUrl(ds);
+
 
         TableProfileResponse response = new TableProfileResponse();
         response.setTableId(table.getId());
         response.setTableName(table.getTableName());
         response.setFullName(table.getFullName());
 
-        try (Connection conn = DriverManager.getConnection(jdbcUrl, ds.getUsername(), ds.getPassword())) {
+        try (Connection conn = targetDataSourceManager.getConnection(ds)) {
             // Row count
             response.setRowCount(getRowCount(conn, dbType, table));
 
@@ -90,9 +91,9 @@ public class DataProfilingService {
                         HttpStatus.NOT_FOUND, "Column not found: " + columnName));
 
         String dbType = ds.getDbType().toLowerCase();
-        String jdbcUrl = JdbcUrlBuilder.buildJdbcUrl(ds);
 
-        try (Connection conn = DriverManager.getConnection(jdbcUrl, ds.getUsername(), ds.getPassword())) {
+
+        try (Connection conn = targetDataSourceManager.getConnection(ds)) {
             return profileColumn(conn, dbType, table, col);
         } catch (SQLException e) {
             log.error("Profiling failed for column {}.{}: {}", table.getFullName(), columnName, e.getMessage());
@@ -112,7 +113,7 @@ public class DataProfilingService {
                         HttpStatus.NOT_FOUND, "Table not found: " + tableId));
 
         String dbType = ds.getDbType().toLowerCase();
-        String jdbcUrl = JdbcUrlBuilder.buildJdbcUrl(ds);
+
         String qualifiedTable = qualifyTable(dbType, table);
 
         DataSampleResponse response = new DataSampleResponse();
@@ -121,7 +122,7 @@ public class DataProfilingService {
         response.setFullName(table.getFullName());
         response.setLimit(effectiveLimit);
 
-        try (Connection conn = DriverManager.getConnection(jdbcUrl, ds.getUsername(), ds.getPassword())) {
+        try (Connection conn = targetDataSourceManager.getConnection(ds)) {
             response.setTotalRowCount(getRowCount(conn, dbType, table));
 
             String sql = buildLimitSql(dbType, "SELECT * FROM " + qualifiedTable, effectiveLimit);
@@ -177,7 +178,7 @@ public class DataProfilingService {
                         HttpStatus.NOT_FOUND, "Column not found: " + columnName));
 
         String dbType = ds.getDbType().toLowerCase();
-        String jdbcUrl = JdbcUrlBuilder.buildJdbcUrl(ds);
+
         String quotedCol = quoteIdentifier(dbType, col.getColumnName());
         String qualifiedTable = qualifyTable(dbType, table);
 
@@ -187,7 +188,7 @@ public class DataProfilingService {
         response.setColumnName(col.getColumnName());
         response.setDataType(col.getDataType());
 
-        try (Connection conn = DriverManager.getConnection(jdbcUrl, ds.getUsername(), ds.getPassword())) {
+        try (Connection conn = targetDataSourceManager.getConnection(ds)) {
             // Total distinct count
             try (Statement stmt = conn.createStatement()) {
                 stmt.setQueryTimeout(QUERY_TIMEOUT_SECONDS);

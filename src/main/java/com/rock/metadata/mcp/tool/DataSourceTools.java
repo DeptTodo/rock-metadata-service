@@ -4,6 +4,7 @@ import com.rock.metadata.dto.ConnectionTestResponse;
 import com.rock.metadata.model.DataSourceConfig;
 import com.rock.metadata.repository.DataSourceConfigRepository;
 import com.rock.metadata.service.ConnectionTestService;
+import com.rock.metadata.service.TargetDataSourceManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -18,6 +19,7 @@ public class DataSourceTools {
 
     private final DataSourceConfigRepository repository;
     private final ConnectionTestService connectionTestService;
+    private final TargetDataSourceManager targetDataSourceManager;
 
     @Tool(description = "Register a new database datasource for metadata crawling. " +
             "Supports postgresql, mysql, oracle, sqlserver, sqlite.")
@@ -89,7 +91,9 @@ public class DataSourceTools {
             if (jdbcUrl != null) ds.setJdbcUrl(jdbcUrl);
             if (schemaPatterns != null) ds.setSchemaPatterns(schemaPatterns);
             if (description != null) ds.setDescription(description);
-            return McpResponseHelper.compact(repository.save(ds));
+            DataSourceConfig saved = repository.save(ds);
+            targetDataSourceManager.evict(datasourceId);
+            return McpResponseHelper.compact(saved);
         });
     }
 
@@ -101,6 +105,7 @@ public class DataSourceTools {
                 throw new IllegalArgumentException("DataSource not found: " + datasourceId);
             }
             repository.deleteById(datasourceId);
+            targetDataSourceManager.evict(datasourceId);
         });
         return "Datasource " + datasourceId + " deleted successfully";
     }

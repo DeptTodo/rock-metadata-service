@@ -56,6 +56,7 @@ public class DatasetExecutionService {
     private final DataSourceConfigRepository dataSourceConfigRepository;
     private final DictDefinitionRepository dictDefinitionRepository;
     private final DictItemRepository dictItemRepository;
+    private final TargetDataSourceManager targetDataSourceManager;
 
     @Transactional
     public DatasetInstance executeDataset(Long datasetId, String rootKeyValue,
@@ -106,7 +107,6 @@ public class DatasetExecutionService {
         }
 
         String dbType = dsConfig.getDbType().toLowerCase();
-        String jdbcUrl = JdbcUrlBuilder.buildJdbcUrl(dsConfig);
 
         try {
             instance.setExecutionStatus(DatasetExecutionStatus.RUNNING);
@@ -201,8 +201,7 @@ public class DatasetExecutionService {
             long totalRows = 0;
             Set<String> failedNodes = new HashSet<>();
 
-            try (Connection conn = DriverManager.getConnection(
-                    jdbcUrl, dsConfig.getUsername(), dsConfig.getPassword())) {
+            try (Connection conn = targetDataSourceManager.getConnection(dsConfig)) {
                 conn.setReadOnly(true);
 
                 for (String nodeCode : executionOrder) {
