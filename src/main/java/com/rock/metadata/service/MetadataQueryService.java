@@ -1,10 +1,16 @@
 package com.rock.metadata.service;
 
+import com.rock.metadata.dto.AdvancedSearchRequest;
+import com.rock.metadata.dto.AdvancedSearchResponse;
+import com.rock.metadata.dto.RoutineDetailResponse;
 import com.rock.metadata.dto.SearchResult;
 import com.rock.metadata.dto.TableDetailResponse;
 import com.rock.metadata.model.*;
 import com.rock.metadata.repository.*;
+import com.rock.metadata.repository.spec.MetaColumnSpecifications;
+import com.rock.metadata.repository.spec.MetaTableSpecifications;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +36,10 @@ public class MetadataQueryService {
     private final MetaTriggerRepository metaTriggerRepository;
     private final MetaConstraintRepository metaConstraintRepository;
     private final MetaPrivilegeRepository metaPrivilegeRepository;
+    private final MetaRoutineRepository metaRoutineRepository;
+    private final MetaRoutineColumnRepository metaRoutineColumnRepository;
+    private final MetaSequenceRepository metaSequenceRepository;
+    private final LlmAnalysisJobRepository llmAnalysisJobRepository;
 
     /**
      * Get the latest successful crawl job ID for a datasource.
@@ -115,5 +125,128 @@ public class MetadataQueryService {
         result.setColumns(columnMatches);
 
         return result;
+    }
+
+    // ===== Routines =====
+
+    public List<MetaRoutine> listRoutines(Long datasourceId, String schemaName) {
+        Long jobId = getLatestCrawlJobId(datasourceId);
+        if (schemaName != null && !schemaName.isBlank()) {
+            return metaRoutineRepository.findByCrawlJobIdAndSchemaName(jobId, schemaName);
+        }
+        return metaRoutineRepository.findByCrawlJobId(jobId);
+    }
+
+    public RoutineDetailResponse getRoutineDetail(Long routineId) {
+        MetaRoutine routine = metaRoutineRepository.findById(routineId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Routine not found: " + routineId));
+        RoutineDetailResponse resp = new RoutineDetailResponse();
+        resp.setRoutine(routine);
+        resp.setColumns(metaRoutineColumnRepository.findByRoutineIdOrderByOrdinalPosition(routineId));
+        return resp;
+    }
+
+    // ===== Sequences =====
+
+    public List<MetaSequence> listSequences(Long datasourceId, String schemaName) {
+        Long jobId = getLatestCrawlJobId(datasourceId);
+        if (schemaName != null && !schemaName.isBlank()) {
+            return metaSequenceRepository.findByCrawlJobIdAndSchemaName(jobId, schemaName);
+        }
+        return metaSequenceRepository.findByCrawlJobId(jobId);
+    }
+
+    // ===== LLM Analysis Jobs =====
+
+    public List<LlmAnalysisJob> listLlmAnalysisJobs(Long datasourceId) {
+        if (datasourceId != null) {
+            return llmAnalysisJobRepository.findByDatasourceIdOrderByCreatedAtDesc(datasourceId);
+        }
+        return llmAnalysisJobRepository.findAll();
+    }
+
+    public LlmAnalysisJob getLlmAnalysisJob(Long jobId) {
+        return llmAnalysisJobRepository.findById(jobId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "LLM analysis job not found: " + jobId));
+    }
+
+    // ===== Advanced Search =====
+
+    public AdvancedSearchResponse advancedSearch(Long datasourceId, AdvancedSearchRequest req) {
+        Long jobId = getLatestCrawlJobId(datasourceId);
+
+        // Build table specification
+        Specification<MetaTable> tableSpec = MetaTableSpecifications.crawlJobIdEquals(jobId);
+        if (req.getSchemaName() != null && !req.getSchemaName().isBlank()) {
+            tableSpec = tableSpec.and(MetaTableSpecifications.schemaNameEquals(req.getSchemaName()));
+        }
+        if (req.getTableType() != null && !req.getTableType().isBlank()) {
+            tableSpec = tableSpec.and(MetaTableSpecifications.tableTypeEquals(req.getTableType()));
+        }
+        if (req.getImportanceLevel() != null && !req.getImportanceLevel().isBlank()) {
+            tableSpec = tableSpec.and(MetaTableSpecifications.importanceLevelEquals(req.getImportanceLevel()));
+        }
+        if (req.getBusinessDomain() != null && !req.getBusinessDomain().isBlank()) {
+            tableSpec = tableSpec.and(MetaTableSpecifications.businessDomainEquals(req.getBusinessDomain()));
+        }
+        if (req.getTableNamePattern() != null && !req.getTableNamePattern().isBlank()) {
+            tableSpec = tableSpec.and(MetaTableSpecifications.tableNameLike(req.getTableNamePattern()));
+        }
+
+        List<MetaTable> tables = metaTableRepository.findAll(tableSpec);
+
+        AdvancedSearchResponse response = new AdvancedSearchResponse();
+        response.setTables(tables);
+        response.setTableCount(tables.size());
+
+        // Column search if column filters are provided
+        boolean hasColumnFilter = req.getDataType() != null || req.getSensitivityLevel() != null
+                || req.getNullable() != null || req.getPartOfPrimaryKey() != null
+                || req.getPartOfForeignKey() != null || req.getColumnNamePattern() != null;
+
+        if (hasColumnFilter && !tables.isEmpty()) {
+            List<Long> tableIds = tables.stream().map(MetaTable::getId).toList();
+            Map<Long, String> tableNameMap = tables.stream()
+                    .collect(Collectors.toMap(MetaTable::getId, MetaTable::getFullName));
+
+            Specification<MetaColumn> colSpec = MetaColumnSpecifications.tableIdIn(tableIds);
+            if (req.getDataType() != null && !req.getDataType().isBlank()) {
+                colSpec = colSpec.and(MetaColumnSpecifications.dataTypeEquals(req.getDataType()));
+            }
+            if (req.getSensitivityLevel() != null && !req.getSensitivityLevel().isBlank()) {
+                colSpec = colSpec.and(MetaColumnSpecifications.sensitivityLevelEquals(req.getSensitivityLevel()));
+            }
+            if (req.getNullable() != null) {
+                colSpec = colSpec.and(MetaColumnSpecifications.nullableEquals(req.getNullable()));
+            }
+            if (req.getPartOfPrimaryKey() != null) {
+                colSpec = colSpec.and(MetaColumnSpecifications.partOfPrimaryKey(req.getPartOfPrimaryKey()));
+            }
+            if (req.getPartOfForeignKey() != null) {
+                colSpec = colSpec.and(MetaColumnSpecifications.partOfForeignKey(req.getPartOfForeignKey()));
+            }
+            if (req.getColumnNamePattern() != null && !req.getColumnNamePattern().isBlank()) {
+                colSpec = colSpec.and(MetaColumnSpecifications.columnNameLike(req.getColumnNamePattern()));
+            }
+
+            List<MetaColumn> columns = metaColumnRepository.findAll(colSpec);
+            List<AdvancedSearchResponse.ColumnResult> colResults = columns.stream()
+                    .map(c -> {
+                        AdvancedSearchResponse.ColumnResult cr = new AdvancedSearchResponse.ColumnResult();
+                        cr.setTableFullName(tableNameMap.getOrDefault(c.getTableId(), "unknown"));
+                        cr.setColumn(c);
+                        return cr;
+                    })
+                    .toList();
+            response.setColumns(colResults);
+            response.setColumnCount(colResults.size());
+        } else {
+            response.setColumns(List.of());
+            response.setColumnCount(0);
+        }
+
+        return response;
     }
 }

@@ -2,10 +2,11 @@ package com.rock.metadata.repository;
 
 import com.rock.metadata.model.MetaTable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 
-public interface MetaTableRepository extends JpaRepository<MetaTable, Long> {
+public interface MetaTableRepository extends JpaRepository<MetaTable, Long>, JpaSpecificationExecutor<MetaTable> {
 
     List<MetaTable> findByCrawlJobId(Long crawlJobId);
 

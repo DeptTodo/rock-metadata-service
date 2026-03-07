@@ -1,8 +1,11 @@
 package com.rock.metadata.controller;
 
+import com.rock.metadata.dto.ConnectionTestRequest;
+import com.rock.metadata.dto.ConnectionTestResponse;
 import com.rock.metadata.dto.DataSourceRequest;
 import com.rock.metadata.model.DataSourceConfig;
 import com.rock.metadata.repository.DataSourceConfigRepository;
+import com.rock.metadata.service.ConnectionTestService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -17,6 +20,7 @@ import java.util.List;
 public class DataSourceController {
 
     private final DataSourceConfigRepository repository;
+    private final ConnectionTestService connectionTestService;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -73,5 +77,17 @@ public class DataSourceController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "DataSource not found");
         }
         repository.deleteById(id);
+    }
+
+    @PostMapping("/{id}/test-connection")
+    public ConnectionTestResponse testConnection(@PathVariable Long id) {
+        return connectionTestService.testConnection(id);
+    }
+
+    @PostMapping("/test-connection")
+    public ConnectionTestResponse testConnectionAdhoc(@Valid @RequestBody ConnectionTestRequest req) {
+        return connectionTestService.testConnectionAdhoc(
+                req.getDbType(), req.getHost(), req.getPort(),
+                req.getDatabaseName(), req.getUsername(), req.getPassword(), req.getJdbcUrl());
     }
 }

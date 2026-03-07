@@ -8,5 +8,7 @@ public interface MetaRoutineColumnRepository extends JpaRepository<MetaRoutineCo
 
     List<MetaRoutineColumn> findByRoutineId(Long routineId);
 
+    List<MetaRoutineColumn> findByRoutineIdOrderByOrdinalPosition(Long routineId);
+
     void deleteByRoutineIdIn(List<Long> routineIds);
 }

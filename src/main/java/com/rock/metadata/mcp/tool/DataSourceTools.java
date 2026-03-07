@@ -1,7 +1,9 @@
 package com.rock.metadata.mcp.tool;
 
+import com.rock.metadata.dto.ConnectionTestResponse;
 import com.rock.metadata.model.DataSourceConfig;
 import com.rock.metadata.repository.DataSourceConfigRepository;
+import com.rock.metadata.service.ConnectionTestService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -14,6 +16,7 @@ import java.util.List;
 public class DataSourceTools {
 
     private final DataSourceConfigRepository repository;
+    private final ConnectionTestService connectionTestService;
 
     @Tool(description = "Register a new database datasource for metadata crawling. " +
             "Supports postgresql, mysql, oracle, sqlserver, sqlite.")
@@ -92,5 +95,25 @@ public class DataSourceTools {
         }
         repository.deleteById(datasourceId);
         return "Datasource " + datasourceId + " deleted successfully";
+    }
+
+    @Tool(description = "Test connectivity of a registered datasource. Returns success status, " +
+            "response time, database product info, and error details if failed.")
+    public ConnectionTestResponse test_connection(
+            @ToolParam(description = "Datasource ID") Long datasourceId) {
+        return connectionTestService.testConnection(datasourceId);
+    }
+
+    @Tool(description = "Test connectivity with ad-hoc connection parameters (without registering a datasource)")
+    public ConnectionTestResponse test_connection_adhoc(
+            @ToolParam(description = "Database type: postgresql, mysql, oracle, sqlserver, sqlite") String dbType,
+            @ToolParam(description = "Database hostname", required = false) String host,
+            @ToolParam(description = "Database port", required = false) Integer port,
+            @ToolParam(description = "Database name", required = false) String databaseName,
+            @ToolParam(description = "Database username", required = false) String username,
+            @ToolParam(description = "Database password", required = false) String password,
+            @ToolParam(description = "JDBC URL (overrides host/port/databaseName)", required = false) String jdbcUrl) {
+        return connectionTestService.testConnectionAdhoc(dbType, host, port, databaseName,
+                username, password, jdbcUrl);
     }
 }

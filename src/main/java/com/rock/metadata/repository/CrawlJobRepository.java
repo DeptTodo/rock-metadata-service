@@ -12,4 +12,7 @@ public interface CrawlJobRepository extends JpaRepository<CrawlJob, Long> {
 
     Optional<CrawlJob> findFirstByDatasourceIdAndStatusOrderByFinishedAtDesc(
             Long datasourceId, CrawlStatus status);
+
+    List<CrawlJob> findByDatasourceIdAndStatusOrderByFinishedAtDesc(
+            Long datasourceId, CrawlStatus status);
 }

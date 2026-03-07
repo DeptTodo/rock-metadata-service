@@ -1,9 +1,6 @@
 package com.rock.metadata.mcp;
 
-import com.rock.metadata.mcp.tool.CrawlTools;
-import com.rock.metadata.mcp.tool.DataSourceTools;
-import com.rock.metadata.mcp.tool.MetadataTools;
-import com.rock.metadata.mcp.tool.SqlTools;
+import com.rock.metadata.mcp.tool.*;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 import org.springframework.context.annotation.Bean;
@@ -29,6 +26,36 @@ public class McpServerConfig {
 
     @Bean
     ToolCallbackProvider sqlToolProvider(SqlTools tools) {
+        return MethodToolCallbackProvider.builder().toolObjects(tools).build();
+    }
+
+    @Bean
+    ToolCallbackProvider tagToolProvider(TagTools tools) {
+        return MethodToolCallbackProvider.builder().toolObjects(tools).build();
+    }
+
+    @Bean
+    ToolCallbackProvider dictToolProvider(DictTools tools) {
+        return MethodToolCallbackProvider.builder().toolObjects(tools).build();
+    }
+
+    @Bean
+    ToolCallbackProvider llmAnalysisToolProvider(LlmAnalysisTools tools) {
+        return MethodToolCallbackProvider.builder().toolObjects(tools).build();
+    }
+
+    @Bean
+    ToolCallbackProvider schemaDiffToolProvider(SchemaDiffTools tools) {
+        return MethodToolCallbackProvider.builder().toolObjects(tools).build();
+    }
+
+    @Bean
+    ToolCallbackProvider relationshipToolProvider(RelationshipTools tools) {
+        return MethodToolCallbackProvider.builder().toolObjects(tools).build();
+    }
+
+    @Bean
+    ToolCallbackProvider profilingToolProvider(ProfilingTools tools) {
         return MethodToolCallbackProvider.builder().toolObjects(tools).build();
     }
 }

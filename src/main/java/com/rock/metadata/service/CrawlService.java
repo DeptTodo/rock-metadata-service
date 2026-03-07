@@ -31,6 +31,9 @@ public class CrawlService {
 
     private final Set<Long> activeCrawls = ConcurrentHashMap.newKeySet();
 
+    @org.springframework.beans.factory.annotation.Value("${metadata.crawl.retain-count:2}")
+    private int retainCount;
+
     private final CrawlJobRepository crawlJobRepository;
     private final MetaSchemaRepository metaSchemaRepository;
     private final MetaTableRepository metaTableRepository;
@@ -141,40 +144,44 @@ public class CrawlService {
     }
 
     private void cleanupPreviousCrawlData(Long datasourceId, Long currentCrawlJobId) {
-        crawlJobRepository
-                .findFirstByDatasourceIdAndStatusOrderByFinishedAtDesc(
-                        datasourceId, CrawlStatus.SUCCESS)
-                .ifPresent(previousJob -> {
-                    Long prevJobId = previousJob.getId();
-                    if (prevJobId.equals(currentCrawlJobId)) return;
+        List<CrawlJob> successJobs = crawlJobRepository
+                .findByDatasourceIdAndStatusOrderByFinishedAtDesc(datasourceId, CrawlStatus.SUCCESS);
 
-                    List<MetaTable> oldTables = metaTableRepository.findByCrawlJobId(prevJobId);
-                    List<Long> oldTableIds = oldTables.stream().map(MetaTable::getId).toList();
+        // Keep the most recent N successful crawls (excluding current)
+        List<CrawlJob> toDelete = successJobs.stream()
+                .filter(j -> !j.getId().equals(currentCrawlJobId))
+                .skip(retainCount - 1L) // retain (retainCount - 1) old ones + current = retainCount total
+                .toList();
 
-                    if (!oldTableIds.isEmpty()) {
-                        metaColumnRepository.deleteByTableIdIn(oldTableIds);
-                        metaPrimaryKeyRepository.deleteByTableIdIn(oldTableIds);
-                        metaForeignKeyRepository.deleteByTableIdIn(oldTableIds);
-                        metaIndexRepository.deleteByTableIdIn(oldTableIds);
-                        metaTriggerRepository.deleteByTableIdIn(oldTableIds);
-                        metaConstraintRepository.deleteByTableIdIn(oldTableIds);
-                        metaPrivilegeRepository.deleteByTableIdIn(oldTableIds);
-                    }
+        for (CrawlJob oldJob : toDelete) {
+            Long prevJobId = oldJob.getId();
+            List<MetaTable> oldTables = metaTableRepository.findByCrawlJobId(prevJobId);
+            List<Long> oldTableIds = oldTables.stream().map(MetaTable::getId).toList();
 
-                    List<MetaRoutine> oldRoutines = metaRoutineRepository
-                            .findByDatasourceIdAndCrawlJobId(datasourceId, prevJobId);
-                    List<Long> oldRoutineIds = oldRoutines.stream().map(MetaRoutine::getId).toList();
-                    if (!oldRoutineIds.isEmpty()) {
-                        metaRoutineColumnRepository.deleteByRoutineIdIn(oldRoutineIds);
-                    }
+            if (!oldTableIds.isEmpty()) {
+                metaColumnRepository.deleteByTableIdIn(oldTableIds);
+                metaPrimaryKeyRepository.deleteByTableIdIn(oldTableIds);
+                metaForeignKeyRepository.deleteByTableIdIn(oldTableIds);
+                metaIndexRepository.deleteByTableIdIn(oldTableIds);
+                metaTriggerRepository.deleteByTableIdIn(oldTableIds);
+                metaConstraintRepository.deleteByTableIdIn(oldTableIds);
+                metaPrivilegeRepository.deleteByTableIdIn(oldTableIds);
+            }
 
-                    metaTableRepository.deleteByCrawlJobId(prevJobId);
-                    metaRoutineRepository.deleteByCrawlJobId(prevJobId);
-                    metaSequenceRepository.deleteByCrawlJobId(prevJobId);
-                    metaSchemaRepository.deleteByCrawlJobId(prevJobId);
+            List<MetaRoutine> oldRoutines = metaRoutineRepository
+                    .findByDatasourceIdAndCrawlJobId(datasourceId, prevJobId);
+            List<Long> oldRoutineIds = oldRoutines.stream().map(MetaRoutine::getId).toList();
+            if (!oldRoutineIds.isEmpty()) {
+                metaRoutineColumnRepository.deleteByRoutineIdIn(oldRoutineIds);
+            }
 
-                    log.info("Cleaned up previous crawl data for job {}", prevJobId);
-                });
+            metaTableRepository.deleteByCrawlJobId(prevJobId);
+            metaRoutineRepository.deleteByCrawlJobId(prevJobId);
+            metaSequenceRepository.deleteByCrawlJobId(prevJobId);
+            metaSchemaRepository.deleteByCrawlJobId(prevJobId);
+
+            log.info("Cleaned up old crawl data for job {}", prevJobId);
+        }
     }
 
     private void persistCatalog(Catalog catalog, Long datasourceId, Long crawlJobId) {

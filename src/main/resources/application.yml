@@ -31,3 +31,4 @@ spring:
 metadata:
   crawl:
     thread-pool-size: 5
+    retain-count: 2

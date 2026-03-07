@@ -1,13 +1,10 @@
 package com.rock.metadata.mcp.tool;
 
-import com.rock.metadata.dto.SearchResult;
-import com.rock.metadata.dto.TableDetailResponse;
-import com.rock.metadata.dto.TableRowCount;
-import com.rock.metadata.model.MetaColumn;
-import com.rock.metadata.model.MetaForeignKey;
-import com.rock.metadata.model.MetaIndex;
-import com.rock.metadata.model.MetaSchema;
-import com.rock.metadata.model.MetaTable;
+import com.rock.metadata.dto.*;
+import com.rock.metadata.model.*;
+import com.rock.metadata.service.DatasourceSummaryService;
+import com.rock.metadata.service.MetadataExportService;
+import com.rock.metadata.service.MetadataHealthService;
 import com.rock.metadata.service.MetadataQueryService;
 import com.rock.metadata.service.SqlExecuteService;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +20,9 @@ public class MetadataTools {
 
     private final MetadataQueryService metadataQueryService;
     private final SqlExecuteService sqlExecuteService;
+    private final MetadataExportService metadataExportService;
+    private final DatasourceSummaryService datasourceSummaryService;
+    private final MetadataHealthService metadataHealthService;
 
     @Tool(description = "List all schemas from the latest successful crawl of a datasource")
     public List<MetaSchema> list_schemas(
@@ -82,5 +82,94 @@ public class MetadataTools {
             @ToolParam(description = "Datasource ID") Long datasourceId,
             @ToolParam(description = "Search keyword") String keyword) {
         return metadataQueryService.search(datasourceId, keyword);
+    }
+
+    // ===== Routines =====
+
+    @Tool(description = "List stored procedures and functions from the latest successful crawl, optionally filtered by schema")
+    public List<MetaRoutine> list_routines(
+            @ToolParam(description = "Datasource ID") Long datasourceId,
+            @ToolParam(description = "Schema name to filter by (optional)", required = false) String schema) {
+        return metadataQueryService.listRoutines(datasourceId, schema);
+    }
+
+    @Tool(description = "Get routine detail including parameter list")
+    public RoutineDetailResponse get_routine_detail(
+            @ToolParam(description = "Routine ID") Long routineId) {
+        return metadataQueryService.getRoutineDetail(routineId);
+    }
+
+    // ===== Sequences =====
+
+    @Tool(description = "List sequences from the latest successful crawl, optionally filtered by schema")
+    public List<MetaSequence> list_sequences(
+            @ToolParam(description = "Datasource ID") Long datasourceId,
+            @ToolParam(description = "Schema name to filter by (optional)", required = false) String schema) {
+        return metadataQueryService.listSequences(datasourceId, schema);
+    }
+
+    // ===== Export =====
+
+    @Tool(description = "Export metadata as DDL, JSON, or MARKDOWN format. " +
+            "DDL generates CREATE TABLE statements with PK/FK/INDEX. " +
+            "JSON provides hierarchical metadata tree. " +
+            "MARKDOWN generates readable documentation with column tables.")
+    public String export_metadata(
+            @ToolParam(description = "Datasource ID") Long datasourceId,
+            @ToolParam(description = "Export format: DDL, JSON, or MARKDOWN") String format,
+            @ToolParam(description = "Schema name to filter by (optional)", required = false) String schema) {
+        return metadataExportService.exportMetadata(datasourceId, format, schema);
+    }
+
+    // ===== Summary =====
+
+    @Tool(description = "Get a dashboard-style overview of a datasource: total counts for schemas/tables/columns/routines/sequences, " +
+            "table type distribution, column type distribution top N, tables with most columns/indexes, and last crawl timing")
+    public DatasourceSummary get_datasource_summary(
+            @ToolParam(description = "Datasource ID") Long datasourceId) {
+        return datasourceSummaryService.getSummary(datasourceId);
+    }
+
+    // ===== Health =====
+
+    @Tool(description = "Check metadata freshness and consistency: last crawl time, freshness status " +
+            "(FRESH/AGING/STALE/NO_DATA), crawled vs live table count comparison, connection reachability, " +
+            "overall health (HEALTHY/WARNING/UNHEALTHY), and specific warnings")
+    public MetadataHealthResponse check_metadata_health(
+            @ToolParam(description = "Datasource ID") Long datasourceId) {
+        return metadataHealthService.checkHealth(datasourceId);
+    }
+
+    // ===== Advanced Search =====
+
+    @Tool(description = "Advanced multi-criteria search across tables and columns. " +
+            "Table filters: schemaName, tableType, importanceLevel, businessDomain, tableNamePattern. " +
+            "Column filters: dataType, sensitivityLevel, nullable, partOfPrimaryKey, partOfForeignKey, columnNamePattern.")
+    public AdvancedSearchResponse advanced_search(
+            @ToolParam(description = "Datasource ID") Long datasourceId,
+            @ToolParam(description = "Schema name filter (optional)", required = false) String schemaName,
+            @ToolParam(description = "Table type filter, e.g. TABLE, VIEW (optional)", required = false) String tableType,
+            @ToolParam(description = "Importance level: CORE, IMPORTANT, NORMAL, TRIVIAL (optional)", required = false) String importanceLevel,
+            @ToolParam(description = "Business domain filter (optional)", required = false) String businessDomain,
+            @ToolParam(description = "Table name pattern (substring match, optional)", required = false) String tableNamePattern,
+            @ToolParam(description = "Column data type filter (optional)", required = false) String dataType,
+            @ToolParam(description = "Sensitivity level: PUBLIC, INTERNAL, SENSITIVE, HIGHLY_SENSITIVE (optional)", required = false) String sensitivityLevel,
+            @ToolParam(description = "Filter by nullable columns (optional)", required = false) Boolean nullable,
+            @ToolParam(description = "Filter by primary key columns (optional)", required = false) Boolean partOfPrimaryKey,
+            @ToolParam(description = "Filter by foreign key columns (optional)", required = false) Boolean partOfForeignKey,
+            @ToolParam(description = "Column name pattern (substring match, optional)", required = false) String columnNamePattern) {
+        AdvancedSearchRequest req = new AdvancedSearchRequest();
+        req.setSchemaName(schemaName);
+        req.setTableType(tableType);
+        req.setImportanceLevel(importanceLevel);
+        req.setBusinessDomain(businessDomain);
+        req.setTableNamePattern(tableNamePattern);
+        req.setDataType(dataType);
+        req.setSensitivityLevel(sensitivityLevel);
+        req.setNullable(nullable);
+        req.setPartOfPrimaryKey(partOfPrimaryKey);
+        req.setPartOfForeignKey(partOfForeignKey);
+        req.setColumnNamePattern(columnNamePattern);
+        return metadataQueryService.advancedSearch(datasourceId, req);
     }
 }

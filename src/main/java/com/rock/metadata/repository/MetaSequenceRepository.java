@@ -8,5 +8,9 @@ public interface MetaSequenceRepository extends JpaRepository<MetaSequence, Long
 
     List<MetaSequence> findByDatasourceIdAndCrawlJobId(Long datasourceId, Long crawlJobId);
 
+    List<MetaSequence> findByCrawlJobId(Long crawlJobId);
+
+    List<MetaSequence> findByCrawlJobIdAndSchemaName(Long crawlJobId, String schemaName);
+
     void deleteByCrawlJobId(Long crawlJobId);
 }

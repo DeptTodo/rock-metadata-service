@@ -2,10 +2,11 @@ package com.rock.metadata.repository;
 
 import com.rock.metadata.model.MetaColumn;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 
-public interface MetaColumnRepository extends JpaRepository<MetaColumn, Long> {
+public interface MetaColumnRepository extends JpaRepository<MetaColumn, Long>, JpaSpecificationExecutor<MetaColumn> {
 
     List<MetaColumn> findByTableIdOrderByOrdinalPosition(Long tableId);
 
