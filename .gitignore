@@ -24,3 +24,6 @@ Thumbs.db
 
 # jenv
 .java-version
+
+# Claude Code MCP config (contains API keys)
+.claude/mcp_servers.json

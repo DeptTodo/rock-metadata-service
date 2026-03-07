@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "rock-metadata": {
+      "type": "sse",
+      "url": "http://localhost:9990/sse?api_key=e981b89453964ac669ba6ee7756513dd289667b44d16f533a6092990819e2fe6"
+    }
+  }
+}
