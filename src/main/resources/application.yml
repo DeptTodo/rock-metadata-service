@@ -12,8 +12,8 @@ spring:
     password: postgres
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 20
-      minimum-idle: 5
+      maximum-pool-size: 50
+      minimum-idle: 10
       idle-timeout: 300000
       max-lifetime: 1800000
       connection-timeout: 5000
@@ -43,7 +43,7 @@ metadata:
     thread-pool-size: 5
     retain-count: 2
   dataset:
-    thread-pool-size: 3
+    thread-pool-size: 50
     max-execution-time-seconds: 300
     max-rows-per-node: 10000
     query-timeout-seconds: 30
