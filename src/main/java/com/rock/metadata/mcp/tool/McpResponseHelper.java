@@ -78,6 +78,7 @@ public final class McpResponseHelper {
         m.put("name", t.getTableName());
         m.put("full", t.getFullName());
         put(m, "type", t.getTableType());
+        put(m, "rowCount", t.getRowCount());
         put(m, "comment", truncate(t.getRemarks(), SHORT_TEXT));
         put(m, "display", t.getDisplayName());
         put(m, "domain", t.getBusinessDomain());

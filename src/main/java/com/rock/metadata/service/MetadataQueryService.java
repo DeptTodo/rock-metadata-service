@@ -60,6 +60,10 @@ public class MetadataQueryService {
     }
 
     public List<MetaTable> listTables(Long datasourceId, String schemaName, Boolean unanalyzedOnly) {
+        return listTables(datasourceId, schemaName, unanalyzedOnly, false);
+    }
+
+    public List<MetaTable> listTables(Long datasourceId, String schemaName, Boolean unanalyzedOnly, boolean sortByRowCount) {
         Long jobId = getLatestCrawlJobId(datasourceId);
         if (Boolean.TRUE.equals(unanalyzedOnly)) {
             Specification<MetaTable> spec = MetaTableSpecifications.crawlJobIdEquals(jobId)
@@ -67,12 +71,23 @@ public class MetadataQueryService {
             if (schemaName != null && !schemaName.isBlank()) {
                 spec = spec.and(MetaTableSpecifications.schemaNameEquals(schemaName));
             }
-            return metaTableRepository.findAll(spec);
+            List<MetaTable> result = metaTableRepository.findAll(spec);
+            if (sortByRowCount) {
+                result = new ArrayList<>(result);
+                result.sort((a, b) -> Long.compare(
+                        b.getRowCount() != null ? b.getRowCount() : 0,
+                        a.getRowCount() != null ? a.getRowCount() : 0));
+            }
+            return result;
         }
         if (schemaName != null && !schemaName.isBlank()) {
-            return metaTableRepository.findByCrawlJobIdAndSchemaName(jobId, schemaName);
+            return sortByRowCount
+                    ? metaTableRepository.findByCrawlJobIdAndSchemaNameOrderByRowCountDesc(jobId, schemaName)
+                    : metaTableRepository.findByCrawlJobIdAndSchemaName(jobId, schemaName);
         }
-        return metaTableRepository.findByCrawlJobId(jobId);
+        return sortByRowCount
+                ? metaTableRepository.findByCrawlJobIdOrderByRowCountDesc(jobId)
+                : metaTableRepository.findByCrawlJobId(jobId);
     }
 
     public TableDetailResponse getTableDetail(Long tableId) {

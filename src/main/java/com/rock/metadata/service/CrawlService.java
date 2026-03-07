@@ -51,6 +51,7 @@ public class CrawlService {
     private final MetaSequenceRepository metaSequenceRepository;
     private final MetaTagRepository metaTagRepository;
     private final DictColumnBindingRepository dictColumnBindingRepository;
+    private final SqlExecuteService sqlExecuteService;
 
     public CrawlJob createJob(Long datasourceId, String infoLevel) {
         CrawlJob job = new CrawlJob();
@@ -90,6 +91,16 @@ public class CrawlService {
             log.info("Crawl job {} completed: {} tables, {} columns, {} routines, {} sequences",
                     job.getId(), job.getTableCount(), colCount,
                     job.getRoutineCount(), job.getSequenceCount());
+
+            // Auto-count row numbers for all tables after crawl
+            try {
+                List<MetaTable> tables = metaTableRepository.findByCrawlJobId(job.getId());
+                log.info("Starting auto row count for {} tables after crawl job {}", tables.size(), job.getId());
+                sqlExecuteService.countTableRows(datasourceId, tables);
+                log.info("Auto row count completed for crawl job {}", job.getId());
+            } catch (Exception e) {
+                log.warn("Auto row count failed for crawl job {} (non-fatal): {}", job.getId(), e.getMessage());
+            }
         } catch (Exception e) {
             log.error("Crawl job {} failed", job.getId(), e);
             job.setStatus(CrawlStatus.FAILED);

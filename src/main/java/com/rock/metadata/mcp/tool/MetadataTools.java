@@ -37,14 +37,17 @@ public class MetadataTools {
     }
 
     @Tool(description = "List tables from the latest successful crawl. Returns compact summaries " +
-            "(id, schema, name, full, type, comment, display, domain, importance). " +
+            "(id, schema, name, full, type, rowCount, comment, display, domain, importance). " +
+            "Row counts are auto-populated after crawl. Use sortByRowCount=true to get tables ordered by data volume descending. " +
             "Use get_table_detail for full information on a specific table.")
     public List<Map<String, Object>> list_tables(
             @ToolParam(description = "Datasource ID") Long datasourceId,
             @ToolParam(description = "Schema name to filter by (optional)", required = false) String schema,
-            @ToolParam(description = "If true, only return tables not yet analyzed by LLM (optional)", required = false) Boolean unanalyzedOnly) {
+            @ToolParam(description = "If true, only return tables not yet analyzed by LLM (optional)", required = false) Boolean unanalyzedOnly,
+            @ToolParam(description = "If true, sort tables by row count descending (optional)", required = false) Boolean sortByRowCount) {
         return ToolExecutor.run("list tables", () ->
-                tableSummaries(metadataQueryService.listTables(datasourceId, schema, unanalyzedOnly)));
+                tableSummaries(metadataQueryService.listTables(datasourceId, schema, unanalyzedOnly,
+                        Boolean.TRUE.equals(sortByRowCount))));
     }
 
     @Tool(description = "Get full table detail with compact keys. Includes table info, columns (summary), " +
@@ -81,20 +84,35 @@ public class MetadataTools {
                         .map(McpResponseHelper::compact).toList());
     }
 
-    @Tool(description = "Get actual row counts for tables by connecting to the target datasource. " +
-            "Optionally filter by schema name or table name. Returns row count for each matching table.")
+    @Tool(description = "Get row counts for tables. By default returns pre-stored counts from metadata " +
+            "(auto-populated after crawl). Set refresh=true to re-count by querying the target datasource live. " +
+            "Optionally filter by schema name or table name. Results are sorted by row count descending.")
     public List<TableRowCount> count_table_rows(
             @ToolParam(description = "Datasource ID") Long datasourceId,
             @ToolParam(description = "Schema name to filter by (optional)", required = false) String schema,
-            @ToolParam(description = "Table name to filter by (optional)", required = false) String tableName) {
+            @ToolParam(description = "Table name to filter by (optional)", required = false) String tableName,
+            @ToolParam(description = "If true, re-count by querying the target database live instead of using stored counts (optional, default false)", required = false) Boolean refresh) {
         return ToolExecutor.run("count table rows", () -> {
-            List<MetaTable> tables = metadataQueryService.listTables(datasourceId, schema, null);
+            List<MetaTable> tables = metadataQueryService.listTables(datasourceId, schema, null, true);
             if (tableName != null && !tableName.isBlank()) {
                 tables = tables.stream()
                         .filter(t -> t.getTableName().equalsIgnoreCase(tableName))
                         .toList();
             }
-            return sqlExecuteService.countTableRows(datasourceId, tables);
+            if (Boolean.TRUE.equals(refresh)) {
+                return sqlExecuteService.countTableRows(datasourceId, tables);
+            }
+            // Return pre-stored counts from MetaTable
+            return tables.stream().map(t -> {
+                TableRowCount rc = new TableRowCount();
+                rc.setTableId(t.getId());
+                rc.setSchemaName(t.getSchemaName());
+                rc.setTableName(t.getTableName());
+                rc.setFullName(t.getFullName());
+                rc.setRowCount(t.getRowCount());
+                rc.setRowCountUpdatedAt(t.getRowCountUpdatedAt());
+                return rc;
+            }).toList();
         });
     }
 

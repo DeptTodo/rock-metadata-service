@@ -28,13 +28,14 @@ public class MetadataController {
         return queryService.listSchemas(datasourceId);
     }
 
-    /** List tables for a datasource, optionally filter by schema or unanalyzed status. */
+    /** List tables for a datasource, optionally filter by schema, unanalyzed status, or sort by row count. */
     @GetMapping("/datasources/{datasourceId}/tables")
     public List<MetaTable> listTables(
             @PathVariable Long datasourceId,
             @RequestParam(required = false) String schema,
-            @RequestParam(required = false) Boolean unanalyzedOnly) {
-        return queryService.listTables(datasourceId, schema, unanalyzedOnly);
+            @RequestParam(required = false) Boolean unanalyzedOnly,
+            @RequestParam(required = false) Boolean sortByRowCount) {
+        return queryService.listTables(datasourceId, schema, unanalyzedOnly, Boolean.TRUE.equals(sortByRowCount));
     }
 
     /** Get full detail of a table: columns, primary keys, foreign keys, indexes. */
@@ -60,19 +61,32 @@ public class MetadataController {
         return queryService.listIndexes(tableId);
     }
 
-    /** Get row counts for tables in a datasource, optionally filtered by schema or table name. */
+    /** Get row counts for tables. Returns stored counts by default; set refresh=true to re-query live. */
     @GetMapping("/datasources/{datasourceId}/table-row-counts")
     public List<TableRowCount> getTableRowCounts(
             @PathVariable Long datasourceId,
             @RequestParam(required = false) String schema,
-            @RequestParam(required = false) String tableName) {
-        List<MetaTable> tables = queryService.listTables(datasourceId, schema, null);
+            @RequestParam(required = false) String tableName,
+            @RequestParam(required = false) Boolean refresh) {
+        List<MetaTable> tables = queryService.listTables(datasourceId, schema, null, true);
         if (tableName != null && !tableName.isBlank()) {
             tables = tables.stream()
                     .filter(t -> t.getTableName().equalsIgnoreCase(tableName))
                     .toList();
         }
-        return sqlExecuteService.countTableRows(datasourceId, tables);
+        if (Boolean.TRUE.equals(refresh)) {
+            return sqlExecuteService.countTableRows(datasourceId, tables);
+        }
+        return tables.stream().map(t -> {
+            TableRowCount rc = new TableRowCount();
+            rc.setTableId(t.getId());
+            rc.setSchemaName(t.getSchemaName());
+            rc.setTableName(t.getTableName());
+            rc.setFullName(t.getFullName());
+            rc.setRowCount(t.getRowCount());
+            rc.setRowCountUpdatedAt(t.getRowCountUpdatedAt());
+            return rc;
+        }).toList();
     }
 
     /** Search tables and columns by keyword across a datasource. */

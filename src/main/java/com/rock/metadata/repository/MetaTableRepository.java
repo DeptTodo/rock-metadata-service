@@ -10,7 +10,11 @@ public interface MetaTableRepository extends JpaRepository<MetaTable, Long>, Jpa
 
     List<MetaTable> findByCrawlJobId(Long crawlJobId);
 
+    List<MetaTable> findByCrawlJobIdOrderByRowCountDesc(Long crawlJobId);
+
     List<MetaTable> findByCrawlJobIdAndSchemaName(Long crawlJobId, String schemaName);
+
+    List<MetaTable> findByCrawlJobIdAndSchemaNameOrderByRowCountDesc(Long crawlJobId, String schemaName);
 
     @Query("SELECT t FROM MetaTable t WHERE t.crawlJobId = :crawlJobId " +
            "AND (LOWER(t.tableName) LIKE LOWER(CONCAT('%',:keyword,'%')) " +
