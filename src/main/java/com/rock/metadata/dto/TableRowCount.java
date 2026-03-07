@@ -1,6 +1,7 @@
 package com.rock.metadata.dto;
 
 import lombok.Data;
+import java.time.LocalDateTime;
 
 @Data
 public class TableRowCount {
@@ -10,4 +11,5 @@ public class TableRowCount {
     private String fullName;
     private Long rowCount;
     private String error;
+    private LocalDateTime rowCountUpdatedAt;
 }

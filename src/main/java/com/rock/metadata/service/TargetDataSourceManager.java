@@ -23,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class TargetDataSourceManager {
 
-    private static final int POOL_SIZE = 5;
+    private static final int POOL_SIZE = 20;
     private static final int MIN_IDLE = 1;
     private static final long IDLE_TIMEOUT_MS = 60_000;          // 1 min — idle connections shrink quickly
     private static final long MAX_LIFETIME_MS = 300_000;          // 5 min — recycle before DB-side timeouts
