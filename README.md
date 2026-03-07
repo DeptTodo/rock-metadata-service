@@ -18,7 +18,8 @@ A metadata management service that automatically crawls and catalogs database sc
 - **Data sampling** — sample rows and distinct column values from live databases
 - **Metadata export** — export as DDL, JSON, or Markdown documentation
 - **Health & monitoring** — freshness checking, connection test, live vs crawled table count comparison
-- **70 MCP tools** — full AI agent integration via Spring AI MCP Server (SSE at `/sse`)
+- **Dataset engine** — define reusable dataset templates with aggregation node trees, relation rules, field mappings and transform rules; async execution with topological ordering, nested JSON assembly, and result snapshot storage
+- **90 MCP tools** — full AI agent integration via Spring AI MCP Server (SSE at `/sse`)
 - **Claude Code integration** — `.mcp.json` config for direct use as Claude Code MCP client
 
 ## Tech Stack
@@ -58,7 +59,7 @@ The service starts on `http://localhost:9990`.
 
 ### Claude Code Integration
 
-The project includes a `.mcp.json` file that registers the MCP server for use with [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Once the service is running, Claude Code can directly use all 70 MCP tools for metadata management.
+The project includes a `.mcp.json` file that registers the MCP server for use with [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Once the service is running, Claude Code can directly use all 90 MCP tools for metadata management.
 
 ```json
 {
@@ -180,6 +181,49 @@ Set the `MCP_API_KEY` environment variable (or `metadata.mcp.api-key` in `applic
 | `POST` | `/api/quality/check/column` | Execute quality check on a column |
 | `POST` | `/api/quality/check/table` | Execute quality check on all columns of a table |
 
+### Dataset Engine
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/datasets` | Create a dataset definition |
+| `GET` | `/api/datasets` | List datasets (`?datasourceId=&status=&domain=`) |
+| `GET` | `/api/datasets/{id}` | Get dataset |
+| `GET` | `/api/datasets/by-code/{code}` | Get dataset by code |
+| `GET` | `/api/datasets/{id}/detail` | Full definition (nodes, relations, filters, field mappings) |
+| `PUT` | `/api/datasets/{id}` | Update dataset (DRAFT only) |
+| `DELETE` | `/api/datasets/{id}` | Delete dataset (cascade) |
+| `POST` | `/api/datasets/{id}/publish` | Publish (DRAFT→PUBLISHED, version++) |
+| `POST` | `/api/datasets/{id}/archive` | Archive (PUBLISHED→ARCHIVED) |
+| `POST` | `/api/datasets/{id}/validate` | Validate (cycle detection, reference checks) |
+| `POST` | `/api/datasets/nodes` | Add aggregation node |
+| `GET` | `/api/datasets/{id}/nodes` | List nodes |
+| `PUT` | `/api/datasets/nodes/{id}` | Update node |
+| `DELETE` | `/api/datasets/nodes/{id}` | Delete node |
+| `POST` | `/api/datasets/relations` | Add node relation (FK/COLUMN_MATCH/CUSTOM_SQL) |
+| `GET` | `/api/datasets/{id}/relations` | List relations |
+| `PUT` | `/api/datasets/relations/{id}` | Update relation |
+| `DELETE` | `/api/datasets/relations/{id}` | Delete relation |
+| `POST` | `/api/datasets/filters` | Add node filter |
+| `GET` | `/api/datasets/{id}/filters` | List filters (`?nodeCode=`) |
+| `PUT` | `/api/datasets/filters/{id}` | Update filter |
+| `DELETE` | `/api/datasets/filters/{id}` | Delete filter |
+| `POST` | `/api/datasets/field-mappings` | Add field mapping |
+| `GET` | `/api/datasets/{id}/field-mappings` | List field mappings (`?nodeCode=`) |
+| `PUT` | `/api/datasets/field-mappings/{id}` | Update field mapping |
+| `DELETE` | `/api/datasets/field-mappings/{id}` | Delete field mapping |
+| `POST` | `/api/datasets/transform-rules` | Create transform rule (global) |
+| `GET` | `/api/datasets/transform-rules` | List transform rules (`?activeOnly=`) |
+| `GET` | `/api/datasets/transform-rules/{id}` | Get transform rule |
+| `PUT` | `/api/datasets/transform-rules/{id}` | Update transform rule |
+| `DELETE` | `/api/datasets/transform-rules/{id}` | Delete transform rule |
+| `POST` | `/api/datasets/{id}/execute` | Trigger async execution (202) |
+| `GET` | `/api/datasets/instances` | List instances (`?datasetId=&status=`) |
+| `GET` | `/api/datasets/instances/{id}` | Get instance |
+| `GET` | `/api/datasets/instances/{id}/detail` | Instance + snapshots |
+| `GET` | `/api/datasets/instances/{id}/snapshot` | Aggregate snapshot JSON |
+| `GET` | `/api/datasets/instances/{id}/snapshot/{nodeCode}` | Per-node snapshot |
+| `DELETE` | `/api/datasets/instances/{id}` | Delete instance |
+
 ### LLM Analysis Jobs
 
 | Method | Endpoint | Description |
@@ -193,7 +237,7 @@ Set the `MCP_API_KEY` environment variable (or `metadata.mcp.api-key` in `applic
 |--------|----------|-------------|
 | `POST` | `/api/sql/execute` | Execute SQL against a datasource |
 
-## MCP Tools (70 tools)
+## MCP Tools (90 tools)
 
 The service exposes an MCP server via SSE at `/sse` (message endpoint `/mcp/message`) with the following tool groups:
 
@@ -211,6 +255,7 @@ The service exposes an MCP server via SSE at `/sse` (message endpoint `/mcp/mess
 | ProfilingTools | 4 | Live data profiling, sampling, distinct values |
 | AnnotationTools | 3 | Schema/table/column business attribute updates |
 | DataQualityTools | 12 | Quality rule CRUD, column rule bindings, live quality checks |
+| DatasetTools | 20 | Dataset definition CRUD, nodes, relations, filters, field mappings, execution, instances |
 
 ## Example: Register and Crawl
 
@@ -272,6 +317,12 @@ Key settings in `application.yml`:
 | `server.port` | 9990 | HTTP port |
 | `metadata.crawl.thread-pool-size` | 5 | Async crawl thread pool size |
 | `metadata.crawl.retain-count` | 2 | Number of successful crawl snapshots to retain (for schema diff) |
+| `metadata.dataset.thread-pool-size` | 3 | Dataset execution thread pool size |
+| `metadata.dataset.max-execution-time-seconds` | 300 | Max dataset execution timeout |
+| `metadata.dataset.max-rows-per-node` | 10000 | Max rows per node query |
+| `metadata.dataset.query-timeout-seconds` | 30 | Per-query timeout |
+| `metadata.dataset.max-snapshot-size-bytes` | 104857600 | Max snapshot size (100MB) |
+| `metadata.dataset.retain-instance-count` | 10 | Number of execution instances to retain |
 | `metadata.mcp.api-key` | _(empty)_ | MCP API key for SSE authentication (env: `MCP_API_KEY`) |
 
 ## Project Structure
@@ -287,7 +338,8 @@ src/main/java/com/rock/metadata/
 │   ├── DataQualityController.java         # Quality rule CRUD, column rule bindings, quality checks
 │   ├── TagController.java                # Tag CRUD
 │   ├── DictController.java               # Dictionary CRUD
-│   └── SqlExecuteController.java         # SQL execution
+│   ├── SqlExecuteController.java         # SQL execution
+│   └── DatasetController.java            # Dataset definition CRUD, execution, instances
 ├── service/
 │   ├── CrawlService.java                 # Async crawl + SchemaCrawler integration
 │   ├── MetadataQueryService.java         # Metadata reads + advanced search
@@ -303,14 +355,17 @@ src/main/java/com/rock/metadata/
 │   ├── SchemaDiffService.java            # Schema change detection
 │   ├── RelationshipService.java          # FK traversal & impact analysis
 │   ├── DataProfilingService.java         # Live data profiling
-│   └── JdbcUrlBuilder.java              # JDBC URL construction utility
+│   ├── JdbcUrlBuilder.java              # JDBC URL construction utility
+│   ├── DatasetDefinitionService.java     # Dataset CRUD, validation, lifecycle
+│   ├── DatasetExecutionService.java      # Async dataset execution engine
+│   └── DatasetTransformEngine.java       # Field transform utility (SQL/dict/format)
 ├── mcp/
-│   ├── McpServerConfig.java              # Registers 12 tool providers
-│   └── tool/                             # 12 @Tool classes (70 tools total)
-├── model/                                # 21 JPA entities + 7 enums
-├── dto/                                  # 33 request/response DTOs
+│   ├── McpServerConfig.java              # Registers 13 tool providers
+│   └── tool/                             # 13 @Tool classes (90 tools total)
+├── model/                                # 29 JPA entities + 9 enums
+├── dto/                                  # 43 request/response DTOs
 └── repository/
-    ├── ...Repository.java                # 21 Spring Data JPA repositories
+    ├── ...Repository.java                # 29 Spring Data JPA repositories
     └── spec/                             # JPA Specifications for advanced search
 ```
 

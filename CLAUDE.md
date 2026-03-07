@@ -28,7 +28,7 @@ The service runs on port **9990**. PostgreSQL is used as the metadata store (con
 
 ## MCP Integration
 
-This service is registered as an MCP server for Claude Code via `.mcp.json`. The SSE endpoint is `/sse` with message endpoint `/mcp/message`. API key authentication is controlled by `metadata.mcp.api-key` (env: `MCP_API_KEY`). When the service is running, all 70 MCP tools are available for direct use.
+This service is registered as an MCP server for Claude Code via `.mcp.json`. The SSE endpoint is `/sse` with message endpoint `/mcp/message`. API key authentication is controlled by `metadata.mcp.api-key` (env: `MCP_API_KEY`). When the service is running, all 90 MCP tools are available for direct use.
 
 ## Architecture
 
@@ -43,10 +43,11 @@ This is a Spring Boot 3.4 / Java 21 service that crawls external database schema
 5. **Manage metadata** — tag entities, define data dictionaries, bind dicts to columns
 6. **Quality rules** — define quality rules, bind to columns, execute live quality checks with violation reporting
 7. **Analyze** — diff schema changes, traverse FK relationships, profile live data
+8. **Dataset engine** — define reusable dataset templates (nodes, relations, field mappings, transforms), publish with versioning, async execute with topological ordering, store result snapshots
 
 ### Key Packages (`com.rock.metadata`)
 
-- **`model/`** — JPA entities (21) and enums (7). `DataSourceConfig` stores connection info. `CrawlJob` tracks crawl status/timing. `Meta*` entities (MetaSchema, MetaTable, MetaColumn, MetaPrimaryKey, MetaForeignKey, MetaIndex, MetaTrigger, MetaConstraint, MetaPrivilege, MetaRoutine, MetaRoutineColumn, MetaSequence) hold crawled metadata. `MetaTag` for tagging. `DictDefinition`, `DictItem`, `DictColumnBinding` for data dictionaries. `QualityRule`, `ColumnQualityRule` for data quality. `LlmAnalysisJob` for LLM analysis tracking. Enums: `CrawlStatus`, `ImportanceLevel`, `SensitivityLevel`, `DictSourceType`, `DictType`, `QualityRuleType`, `RuleSeverity`.
+- **`model/`** — JPA entities (29) and enums (9). `DataSourceConfig` stores connection info. `CrawlJob` tracks crawl status/timing. `Meta*` entities (MetaSchema, MetaTable, MetaColumn, MetaPrimaryKey, MetaForeignKey, MetaIndex, MetaTrigger, MetaConstraint, MetaPrivilege, MetaRoutine, MetaRoutineColumn, MetaSequence) hold crawled metadata. `MetaTag` for tagging. `DictDefinition`, `DictItem`, `DictColumnBinding` for data dictionaries. `QualityRule`, `ColumnQualityRule` for data quality. `LlmAnalysisJob` for LLM analysis tracking. `DatasetDefinition`, `DatasetNode`, `DatasetNodeRelation`, `DatasetNodeFilter`, `DatasetFieldMapping`, `DatasetTransformRule`, `DatasetInstance`, `DatasetInstanceSnapshot` for the dataset engine. Enums: `CrawlStatus`, `ImportanceLevel`, `SensitivityLevel`, `DictSourceType`, `DictType`, `QualityRuleType`, `RuleSeverity`, `DatasetStatus`, `DatasetExecutionStatus`.
 - **`service/`** — Business logic:
   - `CrawlService` — async crawls via `@Async`, persists SchemaCrawler `Catalog`, retains last N crawls (configurable via `metadata.crawl.retain-count`)
   - `MetadataQueryService` — reads metadata scoped to latest successful crawl, advanced search with JPA Specifications
@@ -63,6 +64,9 @@ This is a Spring Boot 3.4 / Java 21 service that crawls external database schema
   - `RelationshipService` — FK graph traversal (BFS) and cascade impact analysis
   - `DataProfilingService` — live database profiling (distinct/null/min/max/samples)
   - `JdbcUrlBuilder` — static utility for multi-DB JDBC URL construction
+  - `DatasetDefinitionService` — dataset template CRUD, node/relation/filter/fieldMapping/transformRule management, validation (Kahn's algorithm cycle detection), lifecycle (publish/archive)
+  - `DatasetExecutionService` — async dataset execution engine: topological sort, per-node JDBC query, transform application, tree/flat assembly, snapshot storage, concurrent execution guard
+  - `DatasetTransformEngine` — static utility for SQL expression building, dict lookup, format transforms, dangerous SQL keyword detection, multi-DB LIMIT/TOP
 - **`controller/`** — REST endpoints under `/api/`:
   - `DataSourceController` — datasource CRUD + connection test
   - `CrawlController` — trigger/status crawl jobs
@@ -72,7 +76,8 @@ This is a Spring Boot 3.4 / Java 21 service that crawls external database schema
   - `TagController` — tag CRUD (`/api/tags`)
   - `DictController` — dictionary CRUD (`/api/dicts`)
   - `SqlExecuteController` — execute SQL
-- **`mcp/`** — Spring AI MCP Server integration. `McpServerConfig` registers 12 tool providers. Tool classes in `mcp/tool/` wrap the same services for AI agent consumption. SSE endpoint at `/sse`, message endpoint at `/mcp/message`.
+  - `DatasetController` — dataset definition CRUD, nodes, relations, filters, field mappings, transform rules, execution, instances (`/api/datasets/`)
+- **`mcp/`** — Spring AI MCP Server integration. `McpServerConfig` registers 13 tool providers. Tool classes in `mcp/tool/` wrap the same services for AI agent consumption. SSE endpoint at `/sse`, message endpoint at `/mcp/message`.
   - `DataSourceTools` (7 tools) — CRUD + connection test
   - `CrawlTools` (3 tools) — trigger, status, list
   - `MetadataTools` (15 tools) — schemas, tables, columns, FKs, indexes, routines, sequences, search, export, summary, health, advanced search, row counts
@@ -85,8 +90,9 @@ This is a Spring Boot 3.4 / Java 21 service that crawls external database schema
   - `ProfilingTools` (4 tools) — table/column profiling, data sampling, distinct values
   - `AnnotationTools` (3 tools) — update business attributes on schemas, tables, columns
   - `DataQualityTools` (12 tools) — quality rule CRUD, column rule bindings, live quality checks
-- **`repository/`** — Spring Data JPA repositories (21). `MetaTableRepository` and `MetaColumnRepository` also extend `JpaSpecificationExecutor` for advanced search. `spec/` subpackage has `MetaTableSpecifications` and `MetaColumnSpecifications`.
-- **`dto/`** — Request/response DTOs (33).
+  - `DatasetTools` (20 tools) — dataset definition CRUD (7), nodes (3), relations (3), filters (2), field mappings (2), execution & instances (3)
+- **`repository/`** — Spring Data JPA repositories (29). `MetaTableRepository` and `MetaColumnRepository` also extend `JpaSpecificationExecutor` for advanced search. `spec/` subpackage has `MetaTableSpecifications` and `MetaColumnSpecifications`.
+- **`dto/`** — Request/response DTOs (43).
 
 ### Database Support
 
@@ -97,6 +103,12 @@ The service can crawl: PostgreSQL, MySQL, Oracle, SQL Server, SQLite. JDBC drive
 Key `application.yml` settings:
 - `metadata.crawl.retain-count` (default: 2) — number of successful crawl snapshots to retain per datasource (enables schema diff)
 - `metadata.crawl.thread-pool-size` (default: 5) — async crawl thread pool
+- `metadata.dataset.thread-pool-size` (default: 3) — dataset execution thread pool
+- `metadata.dataset.max-execution-time-seconds` (default: 300) — max dataset execution timeout
+- `metadata.dataset.max-rows-per-node` (default: 10000) — max rows per node query
+- `metadata.dataset.query-timeout-seconds` (default: 30) — per-query timeout
+- `metadata.dataset.max-snapshot-size-bytes` (default: 104857600) — max snapshot size (100MB)
+- `metadata.dataset.retain-instance-count` (default: 10) — execution instances retained per dataset
 - `metadata.mcp.api-key` (env: `MCP_API_KEY`) — API key for MCP SSE authentication (empty = disabled)
 
 ### Conventions
