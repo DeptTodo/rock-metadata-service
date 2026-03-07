@@ -68,4 +68,9 @@ public class McpServerConfig {
     ToolCallbackProvider dataQualityToolProvider(DataQualityTools tools) {
         return MethodToolCallbackProvider.builder().toolObjects(tools).build();
     }
+
+    @Bean
+    ToolCallbackProvider datasetToolProvider(DatasetTools tools) {
+        return MethodToolCallbackProvider.builder().toolObjects(tools).build();
+    }
 }

@@ -32,5 +32,12 @@ metadata:
   crawl:
     thread-pool-size: 5
     retain-count: 2
+  dataset:
+    thread-pool-size: 3
+    max-execution-time-seconds: 300
+    max-rows-per-node: 10000
+    query-timeout-seconds: 30
+    max-snapshot-size-bytes: 104857600
+    retain-instance-count: 10
   mcp:
     api-key: ${MCP_API_KEY:}
