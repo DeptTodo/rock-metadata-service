@@ -17,5 +17,7 @@ public interface QualityRuleRepository extends JpaRepository<QualityRule, Long> 
 
     List<QualityRule> findByActiveTrue();
 
-    List<QualityRule> findByBuiltIn(boolean builtIn);
+    List<QualityRule> findByBuiltInTrue();
+
+    List<QualityRule> findByBuiltInFalse();
 }
