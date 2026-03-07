@@ -32,3 +32,5 @@ metadata:
   crawl:
     thread-pool-size: 5
     retain-count: 2
+  mcp:
+    api-key: ${MCP_API_KEY:}

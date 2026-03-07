@@ -20,6 +20,7 @@ public class SchemaDiffTools {
             @ToolParam(description = "Datasource ID") Long datasourceId,
             @ToolParam(description = "Older crawl job ID (optional, defaults to second-latest)", required = false) Long crawlJobId1,
             @ToolParam(description = "Newer crawl job ID (optional, defaults to latest)", required = false) Long crawlJobId2) {
-        return schemaDiffService.compareCrawls(datasourceId, crawlJobId1, crawlJobId2);
+        return ToolExecutor.run("compare crawls", () ->
+                schemaDiffService.compareCrawls(datasourceId, crawlJobId1, crawlJobId2));
     }
 }

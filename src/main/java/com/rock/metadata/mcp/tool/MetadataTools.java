@@ -27,7 +27,8 @@ public class MetadataTools {
     @Tool(description = "List all schemas from the latest successful crawl of a datasource")
     public List<MetaSchema> list_schemas(
             @ToolParam(description = "Datasource ID") Long datasourceId) {
-        return metadataQueryService.listSchemas(datasourceId);
+        return ToolExecutor.run("list schemas", () ->
+                metadataQueryService.listSchemas(datasourceId));
     }
 
     @Tool(description = "List tables from the latest successful crawl, optionally filtered by schema name or unanalyzed status")
@@ -35,33 +36,38 @@ public class MetadataTools {
             @ToolParam(description = "Datasource ID") Long datasourceId,
             @ToolParam(description = "Schema name to filter by (optional)", required = false) String schema,
             @ToolParam(description = "If true, only return tables not yet analyzed by LLM (optional)", required = false) Boolean unanalyzedOnly) {
-        return metadataQueryService.listTables(datasourceId, schema, unanalyzedOnly);
+        return ToolExecutor.run("list tables", () ->
+                metadataQueryService.listTables(datasourceId, schema, unanalyzedOnly));
     }
 
     @Tool(description = "Get full table detail including columns, primary keys, foreign keys, " +
             "indexes, triggers, constraints, and privileges")
     public TableDetailResponse get_table_detail(
             @ToolParam(description = "Table ID") Long tableId) {
-        return metadataQueryService.getTableDetail(tableId);
+        return ToolExecutor.run("get table detail", () ->
+                metadataQueryService.getTableDetail(tableId));
     }
 
     @Tool(description = "List all columns of a table ordered by ordinal position, optionally filtered by unanalyzed status")
     public List<MetaColumn> list_columns(
             @ToolParam(description = "Table ID") Long tableId,
             @ToolParam(description = "If true, only return columns not yet analyzed by LLM (optional)", required = false) Boolean unanalyzedOnly) {
-        return metadataQueryService.listColumns(tableId, unanalyzedOnly);
+        return ToolExecutor.run("list columns", () ->
+                metadataQueryService.listColumns(tableId, unanalyzedOnly));
     }
 
     @Tool(description = "List foreign keys of a table")
     public List<MetaForeignKey> list_foreign_keys(
             @ToolParam(description = "Table ID") Long tableId) {
-        return metadataQueryService.listForeignKeys(tableId);
+        return ToolExecutor.run("list foreign keys", () ->
+                metadataQueryService.listForeignKeys(tableId));
     }
 
     @Tool(description = "List indexes of a table")
     public List<MetaIndex> list_indexes(
             @ToolParam(description = "Table ID") Long tableId) {
-        return metadataQueryService.listIndexes(tableId);
+        return ToolExecutor.run("list indexes", () ->
+                metadataQueryService.listIndexes(tableId));
     }
 
     @Tool(description = "Get actual row counts for tables by connecting to the target datasource. " +
@@ -70,20 +76,23 @@ public class MetadataTools {
             @ToolParam(description = "Datasource ID") Long datasourceId,
             @ToolParam(description = "Schema name to filter by (optional)", required = false) String schema,
             @ToolParam(description = "Table name to filter by (optional)", required = false) String tableName) {
-        List<MetaTable> tables = metadataQueryService.listTables(datasourceId, schema, null);
-        if (tableName != null && !tableName.isBlank()) {
-            tables = tables.stream()
-                    .filter(t -> t.getTableName().equalsIgnoreCase(tableName))
-                    .toList();
-        }
-        return sqlExecuteService.countTableRows(datasourceId, tables);
+        return ToolExecutor.run("count table rows", () -> {
+            List<MetaTable> tables = metadataQueryService.listTables(datasourceId, schema, null);
+            if (tableName != null && !tableName.isBlank()) {
+                tables = tables.stream()
+                        .filter(t -> t.getTableName().equalsIgnoreCase(tableName))
+                        .toList();
+            }
+            return sqlExecuteService.countTableRows(datasourceId, tables);
+        });
     }
 
     @Tool(description = "Search tables and columns by keyword across a datasource's latest crawl")
     public SearchResult search_metadata(
             @ToolParam(description = "Datasource ID") Long datasourceId,
             @ToolParam(description = "Search keyword") String keyword) {
-        return metadataQueryService.search(datasourceId, keyword);
+        return ToolExecutor.run("search metadata", () ->
+                metadataQueryService.search(datasourceId, keyword));
     }
 
     // ===== Routines =====
@@ -92,13 +101,15 @@ public class MetadataTools {
     public List<MetaRoutine> list_routines(
             @ToolParam(description = "Datasource ID") Long datasourceId,
             @ToolParam(description = "Schema name to filter by (optional)", required = false) String schema) {
-        return metadataQueryService.listRoutines(datasourceId, schema);
+        return ToolExecutor.run("list routines", () ->
+                metadataQueryService.listRoutines(datasourceId, schema));
     }
 
     @Tool(description = "Get routine detail including parameter list")
     public RoutineDetailResponse get_routine_detail(
             @ToolParam(description = "Routine ID") Long routineId) {
-        return metadataQueryService.getRoutineDetail(routineId);
+        return ToolExecutor.run("get routine detail", () ->
+                metadataQueryService.getRoutineDetail(routineId));
     }
 
     // ===== Sequences =====
@@ -107,7 +118,8 @@ public class MetadataTools {
     public List<MetaSequence> list_sequences(
             @ToolParam(description = "Datasource ID") Long datasourceId,
             @ToolParam(description = "Schema name to filter by (optional)", required = false) String schema) {
-        return metadataQueryService.listSequences(datasourceId, schema);
+        return ToolExecutor.run("list sequences", () ->
+                metadataQueryService.listSequences(datasourceId, schema));
     }
 
     // ===== Export =====
@@ -120,7 +132,8 @@ public class MetadataTools {
             @ToolParam(description = "Datasource ID") Long datasourceId,
             @ToolParam(description = "Export format: DDL, JSON, or MARKDOWN") String format,
             @ToolParam(description = "Schema name to filter by (optional)", required = false) String schema) {
-        return metadataExportService.exportMetadata(datasourceId, format, schema);
+        return ToolExecutor.run("export metadata", () ->
+                metadataExportService.exportMetadata(datasourceId, format, schema));
     }
 
     // ===== Summary =====
@@ -129,7 +142,8 @@ public class MetadataTools {
             "table type distribution, column type distribution top N, tables with most columns/indexes, and last crawl timing")
     public DatasourceSummary get_datasource_summary(
             @ToolParam(description = "Datasource ID") Long datasourceId) {
-        return datasourceSummaryService.getSummary(datasourceId);
+        return ToolExecutor.run("get datasource summary", () ->
+                datasourceSummaryService.getSummary(datasourceId));
     }
 
     // ===== Health =====
@@ -139,7 +153,8 @@ public class MetadataTools {
             "overall health (HEALTHY/WARNING/UNHEALTHY), and specific warnings")
     public MetadataHealthResponse check_metadata_health(
             @ToolParam(description = "Datasource ID") Long datasourceId) {
-        return metadataHealthService.checkHealth(datasourceId);
+        return ToolExecutor.run("check metadata health", () ->
+                metadataHealthService.checkHealth(datasourceId));
     }
 
     // ===== Advanced Search =====
@@ -160,18 +175,20 @@ public class MetadataTools {
             @ToolParam(description = "Filter by primary key columns (optional)", required = false) Boolean partOfPrimaryKey,
             @ToolParam(description = "Filter by foreign key columns (optional)", required = false) Boolean partOfForeignKey,
             @ToolParam(description = "Column name pattern (substring match, optional)", required = false) String columnNamePattern) {
-        AdvancedSearchRequest req = new AdvancedSearchRequest();
-        req.setSchemaName(schemaName);
-        req.setTableType(tableType);
-        req.setImportanceLevel(importanceLevel);
-        req.setBusinessDomain(businessDomain);
-        req.setTableNamePattern(tableNamePattern);
-        req.setDataType(dataType);
-        req.setSensitivityLevel(sensitivityLevel);
-        req.setNullable(nullable);
-        req.setPartOfPrimaryKey(partOfPrimaryKey);
-        req.setPartOfForeignKey(partOfForeignKey);
-        req.setColumnNamePattern(columnNamePattern);
-        return metadataQueryService.advancedSearch(datasourceId, req);
+        return ToolExecutor.run("perform advanced search", () -> {
+            AdvancedSearchRequest req = new AdvancedSearchRequest();
+            req.setSchemaName(schemaName);
+            req.setTableType(tableType);
+            req.setImportanceLevel(importanceLevel);
+            req.setBusinessDomain(businessDomain);
+            req.setTableNamePattern(tableNamePattern);
+            req.setDataType(dataType);
+            req.setSensitivityLevel(sensitivityLevel);
+            req.setNullable(nullable);
+            req.setPartOfPrimaryKey(partOfPrimaryKey);
+            req.setPartOfForeignKey(partOfForeignKey);
+            req.setColumnNamePattern(columnNamePattern);
+            return metadataQueryService.advancedSearch(datasourceId, req);
+        });
     }
 }

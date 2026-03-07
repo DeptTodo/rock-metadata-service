@@ -32,27 +32,31 @@ public class DictTools {
             @ToolParam(description = "Source schema name (optional)", required = false) String sourceSchemaName,
             @ToolParam(description = "Source table name (optional)", required = false) String sourceTableName,
             @ToolParam(description = "Source info (optional)", required = false) String sourceInfo) {
-        return dictService.createDict(dictCode, dictName, dictType, description, version,
-                sourceType, datasourceId, sourceSchemaName, sourceTableName, sourceInfo);
+        return ToolExecutor.run("create dict", () ->
+                dictService.createDict(dictCode, dictName, dictType, description, version,
+                        sourceType, datasourceId, sourceSchemaName, sourceTableName, sourceInfo));
     }
 
     @Tool(description = "List data dictionaries, optionally filtered by datasource or active status")
     public List<DictDefinition> list_dicts(
             @ToolParam(description = "Datasource ID (optional)", required = false) Long datasourceId,
             @ToolParam(description = "Only show active dicts (optional)", required = false) Boolean activeOnly) {
-        return dictService.listDicts(datasourceId, activeOnly);
+        return ToolExecutor.run("list dicts", () ->
+                dictService.listDicts(datasourceId, activeOnly));
     }
 
     @Tool(description = "Get dictionary detail with all items by dict ID")
     public DictDetailResponse get_dict_detail(
             @ToolParam(description = "Dict ID") Long dictId) {
-        return dictService.getDictDetail(dictId);
+        return ToolExecutor.run("get dict detail", () ->
+                dictService.getDictDetail(dictId));
     }
 
     @Tool(description = "Get dictionary detail with all items by dict code")
     public DictDetailResponse get_dict_by_code(
             @ToolParam(description = "Dict code, e.g. GENDER") String dictCode) {
-        return dictService.getDictByCode(dictCode);
+        return ToolExecutor.run("get dict by code", () ->
+                dictService.getDictByCode(dictCode));
     }
 
     @Tool(description = "Update a dictionary definition")
@@ -62,13 +66,14 @@ public class DictTools {
             @ToolParam(description = "New description (optional)", required = false) String description,
             @ToolParam(description = "New version (optional)", required = false) String version,
             @ToolParam(description = "Active flag (optional)", required = false) Boolean active) {
-        return dictService.updateDict(dictId, dictName, description, version, active);
+        return ToolExecutor.run("update dict", () ->
+                dictService.updateDict(dictId, dictName, description, version, active));
     }
 
     @Tool(description = "Delete a dictionary and all its items and bindings")
     public String delete_dict(
             @ToolParam(description = "Dict ID") Long dictId) {
-        dictService.deleteDict(dictId);
+        ToolExecutor.runVoid("delete dict", () -> dictService.deleteDict(dictId));
         return "Dict " + dictId + " deleted successfully";
     }
 
@@ -84,15 +89,17 @@ public class DictTools {
             @ToolParam(description = "Sort order (optional)", required = false) Integer sortOrder,
             @ToolParam(description = "Tree level depth (optional)", required = false) Integer treeLevel,
             @ToolParam(description = "Extended attributes as JSON (optional)", required = false) String extAttrs) {
-        return dictService.addDictItem(dictId, parentId, itemCode, itemValue,
-                itemDescription, sortOrder, treeLevel, extAttrs);
+        return ToolExecutor.run("add dict item", () ->
+                dictService.addDictItem(dictId, parentId, itemCode, itemValue,
+                        itemDescription, sortOrder, treeLevel, extAttrs));
     }
 
     @Tool(description = "List items of a dictionary")
     public List<DictItem> list_dict_items(
             @ToolParam(description = "Dict ID") Long dictId,
             @ToolParam(description = "Only show active items (optional)", required = false) Boolean activeOnly) {
-        return dictService.listDictItems(dictId, activeOnly);
+        return ToolExecutor.run("list dict items", () ->
+                dictService.listDictItems(dictId, activeOnly));
     }
 
     @Tool(description = "Update a dictionary item")
@@ -103,13 +110,14 @@ public class DictTools {
             @ToolParam(description = "New description (optional)", required = false) String itemDescription,
             @ToolParam(description = "New sort order (optional)", required = false) Integer sortOrder,
             @ToolParam(description = "Active flag (optional)", required = false) Boolean active) {
-        return dictService.updateDictItem(itemId, itemCode, itemValue, itemDescription, sortOrder, active);
+        return ToolExecutor.run("update dict item", () ->
+                dictService.updateDictItem(itemId, itemCode, itemValue, itemDescription, sortOrder, active));
     }
 
     @Tool(description = "Delete a dictionary item")
     public String delete_dict_item(
             @ToolParam(description = "Item ID") Long itemId) {
-        dictService.deleteDictItem(itemId);
+        ToolExecutor.runVoid("delete dict item", () -> dictService.deleteDictItem(itemId));
         return "Dict item " + itemId + " deleted successfully";
     }
 
@@ -125,26 +133,29 @@ public class DictTools {
             @ToolParam(description = "MetaColumn ID (optional)", required = false) Long metaColumnId,
             @ToolParam(description = "Binding type: MANUAL, NAME_MATCH, or LLM_INFERRED") String bindingType,
             @ToolParam(description = "Confidence score 0.0-1.0 (optional)", required = false) Double confidence) {
-        return dictService.bindDictToColumn(dictId, datasourceId, schemaName, tableName,
-                columnName, metaColumnId, bindingType, confidence);
+        return ToolExecutor.run("bind dict to column", () ->
+                dictService.bindDictToColumn(dictId, datasourceId, schemaName, tableName,
+                        columnName, metaColumnId, bindingType, confidence));
     }
 
     @Tool(description = "List column bindings for a dictionary")
     public List<DictColumnBinding> list_dict_bindings(
             @ToolParam(description = "Dict ID") Long dictId) {
-        return dictService.listDictBindings(dictId);
+        return ToolExecutor.run("list dict bindings", () ->
+                dictService.listDictBindings(dictId));
     }
 
     @Tool(description = "List dictionary bindings for a specific column")
     public List<DictColumnBinding> list_column_dict_bindings(
             @ToolParam(description = "MetaColumn ID") Long metaColumnId) {
-        return dictService.listColumnDictBindings(metaColumnId);
+        return ToolExecutor.run("list column dict bindings", () ->
+                dictService.listColumnDictBindings(metaColumnId));
     }
 
     @Tool(description = "Delete a dictionary-column binding")
     public String delete_dict_binding(
             @ToolParam(description = "Binding ID") Long bindingId) {
-        dictService.deleteDictBinding(bindingId);
+        ToolExecutor.runVoid("delete dict binding", () -> dictService.deleteDictBinding(bindingId));
         return "Binding " + bindingId + " deleted successfully";
     }
 }

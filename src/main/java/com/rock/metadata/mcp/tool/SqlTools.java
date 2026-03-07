@@ -6,7 +6,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
-import org.springframework.web.server.ResponseStatusException;
 
 @Component
 @RequiredArgsConstructor
@@ -20,11 +19,7 @@ public class SqlTools {
     public SqlExecuteResponse execute_sql(
             @ToolParam(description = "Datasource ID") Long datasourceId,
             @ToolParam(description = "SQL query or statement to execute") String sql) {
-        try {
-            return sqlExecuteService.execute(datasourceId, sql);
-        } catch (ResponseStatusException e) {
-            throw new IllegalArgumentException(
-                    "SQL execution failed: " + e.getReason());
-        }
+        return ToolExecutor.run("execute SQL", () ->
+                sqlExecuteService.execute(datasourceId, sql));
     }
 }

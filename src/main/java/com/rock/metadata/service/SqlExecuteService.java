@@ -26,18 +26,22 @@ public class SqlExecuteService {
 
     private static final int MAX_ROWS = 10000;
 
+    private static final int QUERY_TIMEOUT_SECONDS = 30;
+
     public SqlExecuteResponse execute(Long datasourceId, String sql) {
         DataSourceConfig ds = dataSourceConfigRepository.findById(datasourceId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "DataSource not found"));
 
         String jdbcUrl = JdbcUrlBuilder.buildJdbcUrl(ds);
-        log.info("Executing SQL on datasource {}", datasourceId);
+        log.info("Executing SQL on datasource {}: {}", datasourceId,
+                sql == null ? "null" : sql.substring(0, Math.min(sql.length(), 200)));
 
         try (Connection conn = DriverManager.getConnection(jdbcUrl, ds.getUsername(), ds.getPassword());
              Statement stmt = conn.createStatement()) {
 
             stmt.setMaxRows(MAX_ROWS);
+            stmt.setQueryTimeout(QUERY_TIMEOUT_SECONDS);
             boolean isQuery = stmt.execute(sql);
             SqlExecuteResponse response = new SqlExecuteResponse();
             response.setQuery(isQuery);

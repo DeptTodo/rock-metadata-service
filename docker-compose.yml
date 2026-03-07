@@ -23,6 +23,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/rock_metadata
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
+      MCP_API_KEY: ${MCP_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy

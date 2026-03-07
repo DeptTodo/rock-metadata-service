@@ -18,12 +18,14 @@ public class LlmAnalysisTools {
     @Tool(description = "List LLM analysis jobs, optionally filtered by datasource")
     public List<LlmAnalysisJob> list_llm_analysis_jobs(
             @ToolParam(description = "Datasource ID (optional)", required = false) Long datasourceId) {
-        return metadataQueryService.listLlmAnalysisJobs(datasourceId);
+        return ToolExecutor.run("list LLM analysis jobs", () ->
+                metadataQueryService.listLlmAnalysisJobs(datasourceId));
     }
 
     @Tool(description = "Get LLM analysis job details and status")
     public LlmAnalysisJob get_llm_analysis_job(
             @ToolParam(description = "LLM analysis job ID") Long jobId) {
-        return metadataQueryService.getLlmAnalysisJob(jobId);
+        return ToolExecutor.run("get LLM analysis job", () ->
+                metadataQueryService.getLlmAnalysisJob(jobId));
     }
 }

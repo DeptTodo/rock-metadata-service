@@ -23,7 +23,8 @@ public class ProfilingTools {
             @ToolParam(description = "Table ID") Long tableId,
             @ToolParam(description = "Specific column names to profile (optional, profiles all if not specified)",
                     required = false) List<String> columns) {
-        return dataProfilingService.profileTable(datasourceId, tableId, columns);
+        return ToolExecutor.run("profile table", () ->
+                dataProfilingService.profileTable(datasourceId, tableId, columns));
     }
 
     @Tool(description = "Profile a single column of a table against the live database")
@@ -31,7 +32,8 @@ public class ProfilingTools {
             @ToolParam(description = "Datasource ID") Long datasourceId,
             @ToolParam(description = "Table ID") Long tableId,
             @ToolParam(description = "Column name") String columnName) {
-        return dataProfilingService.profileSingleColumn(datasourceId, tableId, columnName);
+        return ToolExecutor.run("profile column", () ->
+                dataProfilingService.profileSingleColumn(datasourceId, tableId, columnName));
     }
 
     @Tool(description = "Sample rows from a table in the live database. " +
@@ -41,7 +43,8 @@ public class ProfilingTools {
             @ToolParam(description = "Table ID") Long tableId,
             @ToolParam(description = "Number of rows to sample (default 10, max 100)",
                     required = false) Integer limit) {
-        return dataProfilingService.sampleTableRows(datasourceId, tableId, limit);
+        return ToolExecutor.run("sample table rows", () ->
+                dataProfilingService.sampleTableRows(datasourceId, tableId, limit));
     }
 
     @Tool(description = "Get distinct values of a column with their frequency counts, " +
@@ -52,6 +55,7 @@ public class ProfilingTools {
             @ToolParam(description = "Column name") String columnName,
             @ToolParam(description = "Max number of distinct values to return (default 50, max 500)",
                     required = false) Integer limit) {
-        return dataProfilingService.getDistinctColumnValues(datasourceId, tableId, columnName, limit);
+        return ToolExecutor.run("get distinct column values", () ->
+                dataProfilingService.getDistinctColumnValues(datasourceId, tableId, columnName, limit));
     }
 }

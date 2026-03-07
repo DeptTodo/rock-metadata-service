@@ -19,7 +19,8 @@ public class RelationshipTools {
     public TableRelationshipResponse get_table_relationships(
             @ToolParam(description = "Table ID") Long tableId,
             @ToolParam(description = "Traversal depth (default 1, max 5)", required = false) Integer depth) {
-        return relationshipService.getTableRelationships(tableId, depth);
+        return ToolExecutor.run("get table relationships", () ->
+                relationshipService.getTableRelationships(tableId, depth));
     }
 
     @Tool(description = "Analyze the cascade impact of modifying a table. " +
@@ -27,6 +28,7 @@ public class RelationshipTools {
             "including update/delete rules.")
     public ImpactAnalysisResponse get_impact_analysis(
             @ToolParam(description = "Table ID") Long tableId) {
-        return relationshipService.getImpactAnalysis(tableId);
+        return ToolExecutor.run("get impact analysis", () ->
+                relationshipService.getImpactAnalysis(tableId));
     }
 }

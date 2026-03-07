@@ -22,21 +22,24 @@ public class TagTools {
             @ToolParam(description = "Tag key") String tagKey,
             @ToolParam(description = "Tag value (optional)", required = false) String tagValue,
             @ToolParam(description = "Tag source: MANUAL, LLM, or CRAWLER (default: MANUAL)", required = false) String source) {
-        return tagService.createTag(targetType, targetId, tagKey, tagValue, source);
+        return ToolExecutor.run("create tag", () ->
+                tagService.createTag(targetType, targetId, tagKey, tagValue, source));
     }
 
     @Tool(description = "List all tags for a specific metadata entity")
     public List<MetaTag> list_tags_by_target(
             @ToolParam(description = "Target type: SCHEMA, TABLE, or COLUMN") String targetType,
             @ToolParam(description = "ID of the target entity") Long targetId) {
-        return tagService.listTagsByTarget(targetType, targetId);
+        return ToolExecutor.run("list tags", () ->
+                tagService.listTagsByTarget(targetType, targetId));
     }
 
     @Tool(description = "List tags by key, optionally filtered by value")
     public List<MetaTag> list_tags_by_key(
             @ToolParam(description = "Tag key to search for") String tagKey,
             @ToolParam(description = "Tag value to filter by (optional)", required = false) String tagValue) {
-        return tagService.listTagsByKey(tagKey, tagValue);
+        return ToolExecutor.run("list tags by key", () ->
+                tagService.listTagsByKey(tagKey, tagValue));
     }
 
     @Tool(description = "Update an existing tag")
@@ -45,13 +48,14 @@ public class TagTools {
             @ToolParam(description = "New tag key (optional)", required = false) String tagKey,
             @ToolParam(description = "New tag value (optional)", required = false) String tagValue,
             @ToolParam(description = "New source (optional)", required = false) String source) {
-        return tagService.updateTag(tagId, tagKey, tagValue, source);
+        return ToolExecutor.run("update tag", () ->
+                tagService.updateTag(tagId, tagKey, tagValue, source));
     }
 
     @Tool(description = "Delete a single tag by ID")
     public String delete_tag(
             @ToolParam(description = "Tag ID") Long tagId) {
-        tagService.deleteTag(tagId);
+        ToolExecutor.runVoid("delete tag", () -> tagService.deleteTag(tagId));
         return "Tag " + tagId + " deleted successfully";
     }
 
@@ -59,7 +63,7 @@ public class TagTools {
     public String delete_tags_by_target(
             @ToolParam(description = "Target type: SCHEMA, TABLE, or COLUMN") String targetType,
             @ToolParam(description = "ID of the target entity") Long targetId) {
-        tagService.deleteTagsByTarget(targetType, targetId);
+        ToolExecutor.runVoid("delete tags", () -> tagService.deleteTagsByTarget(targetType, targetId));
         return "Tags deleted for " + targetType + " " + targetId;
     }
 }

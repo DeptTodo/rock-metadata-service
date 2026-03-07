@@ -26,11 +26,13 @@ public class AnnotationTools {
             @ToolParam(description = "Business display name (optional)", required = false) String displayName,
             @ToolParam(description = "Business description (optional)", required = false) String businessDescription,
             @ToolParam(description = "Data owner / responsible person (optional)", required = false) String owner) {
-        UpdateSchemaAttrsRequest req = new UpdateSchemaAttrsRequest();
-        req.setDisplayName(displayName);
-        req.setBusinessDescription(businessDescription);
-        req.setOwner(owner);
-        return annotationService.updateSchemaAttrs(schemaId, req);
+        return ToolExecutor.run("update schema attrs", () -> {
+            UpdateSchemaAttrsRequest req = new UpdateSchemaAttrsRequest();
+            req.setDisplayName(displayName);
+            req.setBusinessDescription(businessDescription);
+            req.setOwner(owner);
+            return annotationService.updateSchemaAttrs(schemaId, req);
+        });
     }
 
     @Tool(description = "Update business attributes of a table. " +
@@ -44,14 +46,16 @@ public class AnnotationTools {
             @ToolParam(description = "Data owner / responsible person (optional)", required = false) String owner,
             @ToolParam(description = "Importance level: CORE, IMPORTANT, NORMAL, TRIVIAL (optional)", required = false) String importanceLevel,
             @ToolParam(description = "Data quality score 0-100 (optional)", required = false) Integer dataQualityScore) {
-        UpdateTableAttrsRequest req = new UpdateTableAttrsRequest();
-        req.setDisplayName(displayName);
-        req.setBusinessDescription(businessDescription);
-        req.setBusinessDomain(businessDomain);
-        req.setOwner(owner);
-        req.setImportanceLevel(importanceLevel);
-        req.setDataQualityScore(dataQualityScore);
-        return annotationService.updateTableAttrs(tableId, req);
+        return ToolExecutor.run("update table attrs", () -> {
+            UpdateTableAttrsRequest req = new UpdateTableAttrsRequest();
+            req.setDisplayName(displayName);
+            req.setBusinessDescription(businessDescription);
+            req.setBusinessDomain(businessDomain);
+            req.setOwner(owner);
+            req.setImportanceLevel(importanceLevel);
+            req.setDataQualityScore(dataQualityScore);
+            return annotationService.updateTableAttrs(tableId, req);
+        });
     }
 
     @Tool(description = "Update business and security attributes of a column. " +
@@ -69,16 +73,18 @@ public class AnnotationTools {
             @ToolParam(description = "Sensitivity type: PII, FINANCIAL, MEDICAL, CREDENTIAL, LOCATION, etc. (optional)", required = false) String sensitivityType,
             @ToolParam(description = "Masking strategy: FULL_MASK, PARTIAL_MASK, HASH, ENCRYPT, NONE (optional)", required = false) String maskingStrategy,
             @ToolParam(description = "Compliance flags, comma-separated: GDPR, CCPA, HIPAA, PCI_DSS (optional)", required = false) String complianceFlags) {
-        UpdateColumnAttrsRequest req = new UpdateColumnAttrsRequest();
-        req.setDisplayName(displayName);
-        req.setBusinessDescription(businessDescription);
-        req.setBusinessDataType(businessDataType);
-        req.setSampleValues(sampleValues);
-        req.setValueRange(valueRange);
-        req.setSensitivityLevel(sensitivityLevel);
-        req.setSensitivityType(sensitivityType);
-        req.setMaskingStrategy(maskingStrategy);
-        req.setComplianceFlags(complianceFlags);
-        return annotationService.updateColumnAttrs(columnId, req);
+        return ToolExecutor.run("update column attrs", () -> {
+            UpdateColumnAttrsRequest req = new UpdateColumnAttrsRequest();
+            req.setDisplayName(displayName);
+            req.setBusinessDescription(businessDescription);
+            req.setBusinessDataType(businessDataType);
+            req.setSampleValues(sampleValues);
+            req.setValueRange(valueRange);
+            req.setSensitivityLevel(sensitivityLevel);
+            req.setSensitivityType(sensitivityType);
+            req.setMaskingStrategy(maskingStrategy);
+            req.setComplianceFlags(complianceFlags);
+            return annotationService.updateColumnAttrs(columnId, req);
+        });
     }
 }
