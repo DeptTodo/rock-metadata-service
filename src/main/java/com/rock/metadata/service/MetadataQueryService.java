@@ -98,7 +98,7 @@ public class MetadataQueryService {
 
     public SearchResult search(Long datasourceId, String keyword) {
         if (keyword == null || keyword.isBlank()) {
-            throw new IllegalArgumentException("Search keyword must not be blank");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Search keyword must not be blank");
         }
         Long jobId = getLatestCrawlJobId(datasourceId);
         SearchResult result = new SearchResult();

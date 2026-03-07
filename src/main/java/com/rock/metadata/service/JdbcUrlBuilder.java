@@ -33,4 +33,20 @@ public final class JdbcUrlBuilder {
             default -> throw new IllegalArgumentException("Unsupported database type: " + ds.getDbType());
         };
     }
+
+    public static String quoteIdentifier(String dbType, String identifier) {
+        return switch (dbType) {
+            case "mysql" -> "`" + identifier.replace("`", "``") + "`";
+            case "sqlserver" -> "[" + identifier.replace("]", "]]") + "]";
+            default -> "\"" + identifier.replace("\"", "\"\"") + "\"";
+        };
+    }
+
+    public static String qualifyTable(String dbType, String schemaName, String tableName) {
+        String quotedTable = quoteIdentifier(dbType, tableName);
+        if (schemaName != null && !schemaName.isBlank()) {
+            return quoteIdentifier(dbType, schemaName) + "." + quotedTable;
+        }
+        return quotedTable;
+    }
 }

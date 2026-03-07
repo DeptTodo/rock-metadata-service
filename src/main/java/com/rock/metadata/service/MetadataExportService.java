@@ -3,8 +3,10 @@ package com.rock.metadata.service;
 import com.rock.metadata.model.*;
 import com.rock.metadata.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -28,8 +30,8 @@ public class MetadataExportService {
             case "DDL" -> exportAsDdl(tables);
             case "JSON" -> exportAsJson(tables);
             case "MARKDOWN" -> exportAsMarkdown(tables);
-            default -> throw new IllegalArgumentException("Unsupported format: " + format
-                    + ". Supported: DDL, JSON, MARKDOWN");
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Unsupported format: " + format + ". Supported: DDL, JSON, MARKDOWN");
         };
     }
 

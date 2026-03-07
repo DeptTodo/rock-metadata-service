@@ -162,9 +162,9 @@ public class SchemaDiffService {
         return changes;
     }
 
-    private void compareProperty(List<PropertyChange> changes, String property, String old, String _new) {
-        String oldVal = old != null ? old : "";
-        String newVal = _new != null ? _new : "";
+    private void compareProperty(List<PropertyChange> changes, String property, String oldValue, String newValue) {
+        String oldVal = oldValue != null ? oldValue : "";
+        String newVal = newValue != null ? newValue : "";
         if (!oldVal.equals(newVal)) {
             PropertyChange change = new PropertyChange();
             change.setProperty(property);

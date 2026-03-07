@@ -116,20 +116,7 @@ public class SqlExecuteService {
     }
 
     private String buildCountSql(String dbType, String schemaName, String tableName) {
-        String quotedTable = quoteIdentifier(dbType, tableName);
-        if (schemaName != null && !schemaName.isBlank()) {
-            String quotedSchema = quoteIdentifier(dbType, schemaName);
-            return "SELECT COUNT(*) FROM " + quotedSchema + "." + quotedTable;
-        }
-        return "SELECT COUNT(*) FROM " + quotedTable;
-    }
-
-    private String quoteIdentifier(String dbType, String identifier) {
-        return switch (dbType) {
-            case "mysql" -> "`" + identifier.replace("`", "``") + "`";
-            case "sqlserver" -> "[" + identifier.replace("]", "]]") + "]";
-            default -> "\"" + identifier.replace("\"", "\"\"") + "\"";
-        };
+        return "SELECT COUNT(*) FROM " + JdbcUrlBuilder.qualifyTable(dbType, schemaName, tableName);
     }
 
 }

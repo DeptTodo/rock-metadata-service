@@ -16,6 +16,7 @@ public class TagService {
 
     private final MetaTagRepository metaTagRepository;
 
+    @Transactional
     public MetaTag createTag(String targetType, Long targetId, String tagKey, String tagValue, String source) {
         MetaTag tag = new MetaTag();
         tag.setTargetType(targetType);
@@ -39,6 +40,7 @@ public class TagService {
         return metaTagRepository.findByTagKey(tagKey);
     }
 
+    @Transactional
     public MetaTag updateTag(Long tagId, String tagKey, String tagValue, String source) {
         MetaTag tag = metaTagRepository.findById(tagId)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -49,6 +51,7 @@ public class TagService {
         return metaTagRepository.save(tag);
     }
 
+    @Transactional
     public void deleteTag(Long tagId) {
         if (!metaTagRepository.existsById(tagId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Tag not found: " + tagId);

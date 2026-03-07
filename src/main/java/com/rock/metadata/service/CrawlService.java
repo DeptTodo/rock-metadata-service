@@ -4,9 +4,11 @@ import com.rock.metadata.model.*;
 import com.rock.metadata.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 import schemacrawler.inclusionrule.RegularExpressionInclusionRule;
 import schemacrawler.schema.*;
 import schemacrawler.schemacrawler.*;
@@ -123,8 +125,8 @@ public class CrawlService {
                     limitBuilder.includeSchemas(
                             new RegularExpressionInclusionRule(ds.getSchemaPatterns()));
                 } catch (Exception e) {
-                    throw new IllegalArgumentException(
-                            "Invalid schema pattern regex: " + ds.getSchemaPatterns(), e);
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            "Invalid schema pattern regex: " + ds.getSchemaPatterns());
                 }
             }
 

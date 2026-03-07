@@ -23,6 +23,7 @@ public class DictService {
 
     // ===== Dict Definition =====
 
+    @Transactional
     public DictDefinition createDict(String dictCode, String dictName, String dictType,
                                       String description, String version, String sourceType,
                                       Long datasourceId, String sourceSchemaName,
@@ -78,6 +79,7 @@ public class DictService {
         return resp;
     }
 
+    @Transactional
     public DictDefinition updateDict(Long dictId, String dictName, String description,
                                       String version, Boolean active) {
         DictDefinition dict = dictDefinitionRepository.findById(dictId)
@@ -102,6 +104,7 @@ public class DictService {
 
     // ===== Dict Items =====
 
+    @Transactional
     public DictItem addDictItem(Long dictId, Long parentId, String itemCode, String itemValue,
                                  String itemDescription, Integer sortOrder, Integer treeLevel,
                                  String extAttrs) {
@@ -128,6 +131,7 @@ public class DictService {
         return dictItemRepository.findByDictIdOrderBySortOrder(dictId);
     }
 
+    @Transactional
     public DictItem updateDictItem(Long itemId, String itemCode, String itemValue,
                                     String itemDescription, Integer sortOrder, Boolean active) {
         DictItem item = dictItemRepository.findById(itemId)
@@ -141,6 +145,7 @@ public class DictService {
         return dictItemRepository.save(item);
     }
 
+    @Transactional
     public void deleteDictItem(Long itemId) {
         if (!dictItemRepository.existsById(itemId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Dict item not found: " + itemId);
@@ -150,6 +155,7 @@ public class DictService {
 
     // ===== Dict Column Bindings =====
 
+    @Transactional
     public DictColumnBinding bindDictToColumn(Long dictId, Long datasourceId, String schemaName,
                                                String tableName, String columnName,
                                                Long metaColumnId, String bindingType,
@@ -179,6 +185,7 @@ public class DictService {
         return dictColumnBindingRepository.findByMetaColumnId(metaColumnId);
     }
 
+    @Transactional
     public void deleteDictBinding(Long bindingId) {
         if (!dictColumnBindingRepository.existsById(bindingId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Binding not found: " + bindingId);

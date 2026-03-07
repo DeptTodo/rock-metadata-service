@@ -181,19 +181,11 @@ public class DataProfilingService {
     }
 
     private String qualifyTable(String dbType, MetaTable table) {
-        String quotedTable = quoteIdentifier(dbType, table.getTableName());
-        if (table.getSchemaName() != null && !table.getSchemaName().isBlank()) {
-            return quoteIdentifier(dbType, table.getSchemaName()) + "." + quotedTable;
-        }
-        return quotedTable;
+        return JdbcUrlBuilder.qualifyTable(dbType, table.getSchemaName(), table.getTableName());
     }
 
     private String quoteIdentifier(String dbType, String identifier) {
-        return switch (dbType) {
-            case "mysql" -> "`" + identifier.replace("`", "``") + "`";
-            case "sqlserver" -> "[" + identifier.replace("]", "]]") + "]";
-            default -> "\"" + identifier.replace("\"", "\"\"") + "\"";
-        };
+        return JdbcUrlBuilder.quoteIdentifier(dbType, identifier);
     }
 
     private String buildSampleSql(String dbType, String table, String column, int limit) {

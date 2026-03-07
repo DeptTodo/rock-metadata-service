@@ -1,10 +1,8 @@
 package com.rock.metadata.dto;
 
-import lombok.Getter;
-import lombok.Setter;
+import lombok.Data;
 
-@Getter
-@Setter
+@Data
 public class TableRowCount {
     private Long tableId;
     private String schemaName;
