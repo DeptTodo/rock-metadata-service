@@ -16,7 +16,6 @@ public class MetadataController {
     private final MetadataQueryService queryService;
     private final SqlExecuteService sqlExecuteService;
     private final MetadataExportService metadataExportService;
-    private final DatasourceSummaryService datasourceSummaryService;
     private final MetadataHealthService metadataHealthService;
     private final SchemaDiffService schemaDiffService;
     private final RelationshipService relationshipService;
@@ -141,13 +140,6 @@ public class MetadataController {
             @RequestParam String format,
             @RequestParam(required = false) String schema) {
         return metadataExportService.exportMetadata(datasourceId, format, schema);
-    }
-
-    // ===== Summary =====
-
-    @GetMapping("/datasources/{datasourceId}/summary")
-    public DatasourceSummary getDatasourceSummary(@PathVariable Long datasourceId) {
-        return datasourceSummaryService.getSummary(datasourceId);
     }
 
     // ===== Health =====

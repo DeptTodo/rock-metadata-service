@@ -32,8 +32,8 @@ public class McpApiKeyFilter implements Filter {
         HttpServletRequest httpReq = (HttpServletRequest) request;
         String path = httpReq.getRequestURI();
 
-        // Only protect MCP endpoints
-        if (!path.startsWith("/mcp")) {
+        // Only protect MCP endpoints (SSE + message)
+        if (!path.startsWith("/mcp") && !path.startsWith("/sse")) {
             chain.doFilter(request, response);
             return;
         }

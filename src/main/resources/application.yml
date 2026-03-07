@@ -25,7 +25,6 @@ spring:
     open-in-view: false
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
     show-sql: false
 
@@ -35,7 +34,7 @@ spring:
         name: rock-metadata-service
         version: 1.0.0
         type: SYNC
-        sse-message-endpoint: /mcp/message
+        protocol: SSE
 
 # Async thread pool for crawl jobs
 metadata:
