@@ -8,9 +8,15 @@ import com.rock.metadata.service.CrawlService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+
+import static com.rock.metadata.mcp.tool.McpResponseHelper.*;
 
 @Component
 @RequiredArgsConstructor
@@ -46,14 +52,39 @@ public class CrawlTools {
                         .orElseThrow(() -> new IllegalArgumentException("CrawlJob not found: " + jobId)));
     }
 
-    @Tool(description = "List crawl jobs, optionally filtered by datasource ID")
-    public List<CrawlJob> list_crawl_jobs(
-            @ToolParam(description = "Datasource ID to filter by (optional)", required = false) Long datasourceId) {
+    @Tool(description = "List crawl jobs, optionally filtered by datasource ID. " +
+            "Returns most recent jobs first, default limit 20.")
+    public List<Map<String, Object>> list_crawl_jobs(
+            @ToolParam(description = "Datasource ID to filter by (optional)", required = false) Long datasourceId,
+            @ToolParam(description = "Max number of jobs to return (default 20)", required = false) Integer limit) {
         return ToolExecutor.run("list crawl jobs", () -> {
+            int effectiveLimit = (limit != null && limit > 0) ? limit : 20;
+            List<CrawlJob> jobs;
             if (datasourceId != null) {
-                return crawlJobRepository.findByDatasourceIdOrderByCreatedAtDesc(datasourceId);
+                jobs = crawlJobRepository.findByDatasourceIdOrderByCreatedAtDesc(datasourceId);
+            } else {
+                jobs = crawlJobRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
             }
-            return crawlJobRepository.findAll();
+            return jobs.stream()
+                    .limit(effectiveLimit)
+                    .map(this::toCrawlJobSummary)
+                    .toList();
         });
+    }
+
+    private Map<String, Object> toCrawlJobSummary(CrawlJob job) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", job.getId());
+        m.put("datasourceId", job.getDatasourceId());
+        m.put("status", job.getStatus());
+        m.put("infoLevel", job.getInfoLevel());
+        m.put("tableCount", job.getTableCount());
+        m.put("columnCount", job.getColumnCount());
+        m.put("routineCount", job.getRoutineCount());
+        m.put("errorMessage", truncate(job.getErrorMessage(), MEDIUM_TEXT));
+        m.put("startedAt", job.getStartedAt());
+        m.put("finishedAt", job.getFinishedAt());
+        m.put("createdAt", job.getCreatedAt());
+        return m;
     }
 }

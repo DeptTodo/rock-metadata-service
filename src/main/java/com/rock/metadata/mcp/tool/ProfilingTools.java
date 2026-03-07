@@ -9,6 +9,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
+import static com.rock.metadata.mcp.tool.McpResponseHelper.*;
+
 @Component
 @RequiredArgsConstructor
 public class ProfilingTools {
@@ -17,7 +19,7 @@ public class ProfilingTools {
 
     @Tool(description = "Profile a table by running analysis queries against the live database. " +
             "Returns row count and per-column statistics: distinct count, null count, null percentage, " +
-            "min/max values, and sample values. Optionally specify columns to profile.")
+            "min/max values, and sample values. Optionally specify columns to profile (recommended for wide tables).")
     public TableProfileResponse profile_table(
             @ToolParam(description = "Datasource ID") Long datasourceId,
             @ToolParam(description = "Table ID") Long tableId,
@@ -37,25 +39,37 @@ public class ProfilingTools {
     }
 
     @Tool(description = "Sample rows from a table in the live database. " +
-            "Returns full rows with all columns. Default limit is 10, max 100.")
+            "Returns rows with all columns. Cell values exceeding " + CELL_VALUE + " chars are truncated. " +
+            "Default limit is " + MCP_DEFAULT_SAMPLE_ROWS + ", max 100.")
     public DataSampleResponse sample_table_rows(
             @ToolParam(description = "Datasource ID") Long datasourceId,
             @ToolParam(description = "Table ID") Long tableId,
-            @ToolParam(description = "Number of rows to sample (default 10, max 100)",
+            @ToolParam(description = "Number of rows to sample (default " + MCP_DEFAULT_SAMPLE_ROWS + ", max 100)",
                     required = false) Integer limit) {
-        return ToolExecutor.run("sample table rows", () ->
-                dataProfilingService.sampleTableRows(datasourceId, tableId, limit));
+        return ToolExecutor.run("sample table rows", () -> {
+            int effectiveLimit = (limit != null && limit > 0) ? limit : MCP_DEFAULT_SAMPLE_ROWS;
+            DataSampleResponse response = dataProfilingService.sampleTableRows(datasourceId, tableId, effectiveLimit);
+            // Truncate long cell values
+            if (response.getRows() != null) {
+                response.setRows(response.getRows().stream()
+                        .map(row -> truncateRow(row, CELL_VALUE))
+                        .toList());
+            }
+            return response;
+        });
     }
 
     @Tool(description = "Get distinct values of a column with their frequency counts, " +
-            "ordered by count descending. Default limit is 50, max 500.")
+            "ordered by count descending. Default limit is 20, max 500.")
     public DistinctValueResponse get_distinct_column_values(
             @ToolParam(description = "Datasource ID") Long datasourceId,
             @ToolParam(description = "Table ID") Long tableId,
             @ToolParam(description = "Column name") String columnName,
-            @ToolParam(description = "Max number of distinct values to return (default 50, max 500)",
+            @ToolParam(description = "Max number of distinct values to return (default 20, max 500)",
                     required = false) Integer limit) {
-        return ToolExecutor.run("get distinct column values", () ->
-                dataProfilingService.getDistinctColumnValues(datasourceId, tableId, columnName, limit));
+        return ToolExecutor.run("get distinct column values", () -> {
+            int effectiveLimit = (limit != null && limit > 0) ? limit : 20;
+            return dataProfilingService.getDistinctColumnValues(datasourceId, tableId, columnName, effectiveLimit);
+        });
     }
 }

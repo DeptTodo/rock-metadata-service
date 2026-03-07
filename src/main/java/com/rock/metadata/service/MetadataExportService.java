@@ -24,7 +24,16 @@ public class MetadataExportService {
     private final MetaIndexRepository metaIndexRepository;
 
     public String exportMetadata(Long datasourceId, String format, String schemaName) {
+        return exportMetadata(datasourceId, format, schemaName, null);
+    }
+
+    public String exportMetadata(Long datasourceId, String format, String schemaName, String tableName) {
         List<MetaTable> tables = metadataQueryService.listTables(datasourceId, schemaName, null);
+        if (tableName != null && !tableName.isBlank()) {
+            tables = tables.stream()
+                    .filter(t -> t.getTableName().equalsIgnoreCase(tableName))
+                    .toList();
+        }
 
         return switch (format.toUpperCase()) {
             case "DDL" -> exportAsDdl(tables);

@@ -7,6 +7,8 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
+import static com.rock.metadata.mcp.tool.McpResponseHelper.*;
+
 @Component
 @RequiredArgsConstructor
 public class SqlTools {
@@ -15,11 +17,27 @@ public class SqlTools {
 
     @Tool(description = "Execute a SQL query or statement on a datasource. " +
             "Returns columns and rows for queries, or affected row count for statements. " +
+            "Default max rows is " + MCP_DEFAULT_SQL_ROWS + " (max " + MCP_MAX_SQL_ROWS + "). " +
+            "Cell values exceeding " + CELL_VALUE + " chars are truncated. " +
             "Use with caution: this executes raw SQL against the target database.")
     public SqlExecuteResponse execute_sql(
             @ToolParam(description = "Datasource ID") Long datasourceId,
-            @ToolParam(description = "SQL query or statement to execute") String sql) {
-        return ToolExecutor.run("execute SQL", () ->
-                sqlExecuteService.execute(datasourceId, sql));
+            @ToolParam(description = "SQL query or statement to execute") String sql,
+            @ToolParam(description = "Max rows to return (default " + MCP_DEFAULT_SQL_ROWS + ", max " + MCP_MAX_SQL_ROWS + ")",
+                    required = false) Integer maxRows) {
+        return ToolExecutor.run("execute SQL", () -> {
+            int limit = MCP_DEFAULT_SQL_ROWS;
+            if (maxRows != null && maxRows > 0) {
+                limit = Math.min(maxRows, MCP_MAX_SQL_ROWS);
+            }
+            SqlExecuteResponse response = sqlExecuteService.execute(datasourceId, sql, limit);
+            // Truncate long cell values
+            if (response.getRows() != null) {
+                response.setRows(response.getRows().stream()
+                        .map(row -> truncateRow(row, CELL_VALUE))
+                        .toList());
+            }
+            return response;
+        });
     }
 }

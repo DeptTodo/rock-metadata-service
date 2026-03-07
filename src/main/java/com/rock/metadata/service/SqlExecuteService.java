@@ -29,10 +29,15 @@ public class SqlExecuteService {
     private static final int QUERY_TIMEOUT_SECONDS = 30;
 
     public SqlExecuteResponse execute(Long datasourceId, String sql) {
+        return execute(datasourceId, sql, MAX_ROWS);
+    }
+
+    public SqlExecuteResponse execute(Long datasourceId, String sql, int maxRows) {
         DataSourceConfig ds = dataSourceConfigRepository.findById(datasourceId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "DataSource not found"));
 
+        int effectiveMaxRows = Math.min(Math.max(maxRows, 1), MAX_ROWS);
         String jdbcUrl = JdbcUrlBuilder.buildJdbcUrl(ds);
         log.info("Executing SQL on datasource {}: {}", datasourceId,
                 sql == null ? "null" : sql.substring(0, Math.min(sql.length(), 200)));
@@ -40,7 +45,8 @@ public class SqlExecuteService {
         try (Connection conn = DriverManager.getConnection(jdbcUrl, ds.getUsername(), ds.getPassword());
              Statement stmt = conn.createStatement()) {
 
-            stmt.setMaxRows(MAX_ROWS);
+            // Fetch one extra row to detect truncation
+            stmt.setMaxRows(effectiveMaxRows + 1);
             stmt.setQueryTimeout(QUERY_TIMEOUT_SECONDS);
             boolean isQuery = stmt.execute(sql);
             SqlExecuteResponse response = new SqlExecuteResponse();
@@ -65,6 +71,13 @@ public class SqlExecuteService {
                         }
                         rows.add(row);
                     }
+
+                    // Check if we got more rows than the limit (truncation indicator)
+                    if (rows.size() > effectiveMaxRows) {
+                        rows = rows.subList(0, effectiveMaxRows);
+                        response.setTruncated(true);
+                    }
+                    response.setReturnedRows(rows.size());
                     response.setRows(rows);
                 }
             } else {
