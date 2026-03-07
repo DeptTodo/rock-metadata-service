@@ -58,4 +58,14 @@ public class McpServerConfig {
     ToolCallbackProvider profilingToolProvider(ProfilingTools tools) {
         return MethodToolCallbackProvider.builder().toolObjects(tools).build();
     }
+
+    @Bean
+    ToolCallbackProvider annotationToolProvider(AnnotationTools tools) {
+        return MethodToolCallbackProvider.builder().toolObjects(tools).build();
+    }
+
+    @Bean
+    ToolCallbackProvider dataQualityToolProvider(DataQualityTools tools) {
+        return MethodToolCallbackProvider.builder().toolObjects(tools).build();
+    }
 }

@@ -59,8 +59,16 @@ public class MetadataQueryService {
         return metaSchemaRepository.findByCrawlJobId(jobId);
     }
 
-    public List<MetaTable> listTables(Long datasourceId, String schemaName) {
+    public List<MetaTable> listTables(Long datasourceId, String schemaName, Boolean unanalyzedOnly) {
         Long jobId = getLatestCrawlJobId(datasourceId);
+        if (Boolean.TRUE.equals(unanalyzedOnly)) {
+            Specification<MetaTable> spec = MetaTableSpecifications.crawlJobIdEquals(jobId)
+                    .and(MetaTableSpecifications.lastAnalyzedAtIsNull());
+            if (schemaName != null && !schemaName.isBlank()) {
+                spec = spec.and(MetaTableSpecifications.schemaNameEquals(schemaName));
+            }
+            return metaTableRepository.findAll(spec);
+        }
         if (schemaName != null && !schemaName.isBlank()) {
             return metaTableRepository.findByCrawlJobIdAndSchemaName(jobId, schemaName);
         }
@@ -84,7 +92,12 @@ public class MetadataQueryService {
         return resp;
     }
 
-    public List<MetaColumn> listColumns(Long tableId) {
+    public List<MetaColumn> listColumns(Long tableId, Boolean unanalyzedOnly) {
+        if (Boolean.TRUE.equals(unanalyzedOnly)) {
+            Specification<MetaColumn> spec = MetaColumnSpecifications.tableIdEquals(tableId)
+                    .and(MetaColumnSpecifications.lastAnalyzedAtIsNull());
+            return metaColumnRepository.findAll(spec);
+        }
         return metaColumnRepository.findByTableIdOrderByOrdinalPosition(tableId);
     }
 

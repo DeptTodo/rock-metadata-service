@@ -49,6 +49,8 @@ public class CrawlService {
     private final MetaRoutineRepository metaRoutineRepository;
     private final MetaRoutineColumnRepository metaRoutineColumnRepository;
     private final MetaSequenceRepository metaSequenceRepository;
+    private final MetaTagRepository metaTagRepository;
+    private final DictColumnBindingRepository dictColumnBindingRepository;
 
     public CrawlJob createJob(Long datasourceId, String infoLevel) {
         CrawlJob job = new CrawlJob();
@@ -187,6 +189,18 @@ public class CrawlService {
     }
 
     private void persistCatalog(Catalog catalog, Long datasourceId, Long crawlJobId) {
+        // Load previous crawl's enriched data before cleanup (may be deleted if retainCount=1)
+        Long prevJobId = crawlJobRepository
+                .findFirstByDatasourceIdAndStatusOrderByFinishedAtDesc(datasourceId, CrawlStatus.SUCCESS)
+                .map(CrawlJob::getId).orElse(null);
+        List<MetaSchema> oldSchemas = prevJobId != null
+                ? metaSchemaRepository.findByCrawlJobId(prevJobId) : List.of();
+        List<MetaTable> oldTables = prevJobId != null
+                ? metaTableRepository.findByCrawlJobId(prevJobId) : List.of();
+        List<Long> oldTableIds = oldTables.stream().map(MetaTable::getId).toList();
+        List<MetaColumn> oldColumns = !oldTableIds.isEmpty()
+                ? metaColumnRepository.findByTableIdIn(oldTableIds) : List.of();
+
         cleanupPreviousCrawlData(datasourceId, crawlJobId);
 
         // Schema name -> MetaSchema ID
@@ -229,6 +243,11 @@ public class CrawlService {
 
         persistRoutines(catalog, datasourceId, crawlJobId, schemaIdMap);
         persistSequences(catalog, datasourceId, crawlJobId);
+
+        // Migrate enriched data (business attributes, tags, dict bindings) from previous crawl
+        if (prevJobId != null) {
+            migrateEnrichedData(crawlJobId, datasourceId, oldSchemas, oldTables, oldColumns);
+        }
     }
 
     private void persistColumns(Table table, Long tableId) {
@@ -428,6 +447,146 @@ public class CrawlService {
             sequences.add(ms);
         }
         metaSequenceRepository.saveAll(sequences);
+    }
+
+    // ===== Enriched data migration =====
+
+    private void migrateEnrichedData(Long newCrawlJobId, Long datasourceId,
+                                      List<MetaSchema> oldSchemas, List<MetaTable> oldTables,
+                                      List<MetaColumn> oldColumns) {
+        // Build old data lookup maps
+        Map<String, MetaSchema> oldSchemaMap = oldSchemas.stream()
+                .collect(Collectors.toMap(MetaSchema::getFullName, s -> s, (a, b) -> a));
+        Map<String, MetaTable> oldTableMap = oldTables.stream()
+                .collect(Collectors.toMap(MetaTable::getFullName, t -> t, (a, b) -> a));
+        Map<Long, String> oldTableIdToFullName = oldTables.stream()
+                .collect(Collectors.toMap(MetaTable::getId, MetaTable::getFullName));
+        Map<String, MetaColumn> oldColumnMap = oldColumns.stream()
+                .collect(Collectors.toMap(
+                        c -> oldTableIdToFullName.getOrDefault(c.getTableId(), "") + "\0" + c.getColumnName(),
+                        c -> c, (a, b) -> a));
+
+        // Load new data
+        List<MetaSchema> newSchemas = metaSchemaRepository.findByCrawlJobId(newCrawlJobId);
+        List<MetaTable> newTables = metaTableRepository.findByCrawlJobId(newCrawlJobId);
+        List<Long> newTableIds = newTables.stream().map(MetaTable::getId).toList();
+        List<MetaColumn> newColumns = !newTableIds.isEmpty()
+                ? metaColumnRepository.findByTableIdIn(newTableIds) : List.of();
+        Map<Long, String> newTableIdToFullName = newTables.stream()
+                .collect(Collectors.toMap(MetaTable::getId, MetaTable::getFullName));
+
+        // ID mappings: old -> new
+        Map<Long, Long> schemaIdMapping = new HashMap<>();
+        Map<Long, Long> tableIdMapping = new HashMap<>();
+        Map<Long, Long> columnIdMapping = new HashMap<>();
+
+        // Migrate schema business attributes
+        for (MetaSchema newSchema : newSchemas) {
+            MetaSchema oldSchema = oldSchemaMap.get(newSchema.getFullName());
+            if (oldSchema != null) {
+                schemaIdMapping.put(oldSchema.getId(), newSchema.getId());
+                copySchemaAttributes(oldSchema, newSchema);
+            }
+        }
+        if (!schemaIdMapping.isEmpty()) {
+            metaSchemaRepository.saveAll(newSchemas);
+        }
+
+        // Migrate table business attributes
+        for (MetaTable newTable : newTables) {
+            MetaTable oldTable = oldTableMap.get(newTable.getFullName());
+            if (oldTable != null) {
+                tableIdMapping.put(oldTable.getId(), newTable.getId());
+                copyTableAttributes(oldTable, newTable);
+            }
+        }
+        if (!tableIdMapping.isEmpty()) {
+            metaTableRepository.saveAll(newTables);
+        }
+
+        // Migrate column business & security attributes
+        for (MetaColumn newCol : newColumns) {
+            String key = newTableIdToFullName.getOrDefault(newCol.getTableId(), "") + "\0" + newCol.getColumnName();
+            MetaColumn oldCol = oldColumnMap.get(key);
+            if (oldCol != null) {
+                columnIdMapping.put(oldCol.getId(), newCol.getId());
+                copyColumnAttributes(oldCol, newCol);
+            }
+        }
+        if (!columnIdMapping.isEmpty()) {
+            metaColumnRepository.saveAll(newColumns);
+        }
+
+        // Update tag references to point to new IDs
+        updateTagReferences("SCHEMA", schemaIdMapping);
+        updateTagReferences("TABLE", tableIdMapping);
+        updateTagReferences("COLUMN", columnIdMapping);
+
+        // Update dict binding references to point to new column IDs
+        updateDictBindingReferences(columnIdMapping);
+
+        log.info("Migrated enriched data: {} schemas, {} tables, {} columns",
+                schemaIdMapping.size(), tableIdMapping.size(), columnIdMapping.size());
+    }
+
+    private void copySchemaAttributes(MetaSchema from, MetaSchema to) {
+        to.setDisplayName(from.getDisplayName());
+        to.setBusinessDescription(from.getBusinessDescription());
+        to.setOwner(from.getOwner());
+    }
+
+    private void copyTableAttributes(MetaTable from, MetaTable to) {
+        to.setDisplayName(from.getDisplayName());
+        to.setBusinessDescription(from.getBusinessDescription());
+        to.setBusinessDomain(from.getBusinessDomain());
+        to.setOwner(from.getOwner());
+        to.setImportanceLevel(from.getImportanceLevel());
+        to.setDataQualityScore(from.getDataQualityScore());
+        to.setRowCount(from.getRowCount());
+        to.setLastAnalyzedAt(from.getLastAnalyzedAt());
+        to.setAnalysisConfidence(from.getAnalysisConfidence());
+    }
+
+    private void copyColumnAttributes(MetaColumn from, MetaColumn to) {
+        to.setDisplayName(from.getDisplayName());
+        to.setBusinessDescription(from.getBusinessDescription());
+        to.setBusinessDataType(from.getBusinessDataType());
+        to.setSampleValues(from.getSampleValues());
+        to.setValueRange(from.getValueRange());
+        to.setSensitivityLevel(from.getSensitivityLevel());
+        to.setSensitivityType(from.getSensitivityType());
+        to.setMaskingStrategy(from.getMaskingStrategy());
+        to.setComplianceFlags(from.getComplianceFlags());
+        to.setLastAnalyzedAt(from.getLastAnalyzedAt());
+        to.setAnalysisConfidence(from.getAnalysisConfidence());
+    }
+
+    private void updateTagReferences(String targetType, Map<Long, Long> idMapping) {
+        if (idMapping.isEmpty()) return;
+        List<MetaTag> tags = metaTagRepository.findByTargetTypeAndTargetIdIn(
+                targetType, new ArrayList<>(idMapping.keySet()));
+        if (tags.isEmpty()) return;
+        for (MetaTag tag : tags) {
+            Long newId = idMapping.get(tag.getTargetId());
+            if (newId != null) {
+                tag.setTargetId(newId);
+            }
+        }
+        metaTagRepository.saveAll(tags);
+    }
+
+    private void updateDictBindingReferences(Map<Long, Long> columnIdMapping) {
+        if (columnIdMapping.isEmpty()) return;
+        List<DictColumnBinding> bindings = dictColumnBindingRepository.findByMetaColumnIdIn(
+                new ArrayList<>(columnIdMapping.keySet()));
+        if (bindings.isEmpty()) return;
+        for (DictColumnBinding binding : bindings) {
+            Long newId = columnIdMapping.get(binding.getMetaColumnId());
+            if (newId != null) {
+                binding.setMetaColumnId(newId);
+            }
+        }
+        dictColumnBindingRepository.saveAll(bindings);
     }
 
     private static String truncate(String s, int maxLen) {

@@ -27,6 +27,10 @@ public final class MetaTableSpecifications {
         return (root, query, cb) -> cb.equal(root.get("businessDomain"), businessDomain);
     }
 
+    public static Specification<MetaTable> lastAnalyzedAtIsNull() {
+        return (root, query, cb) -> cb.isNull(root.get("lastAnalyzedAt"));
+    }
+
     public static Specification<MetaTable> tableNameLike(String pattern) {
         return (root, query, cb) -> cb.like(cb.lower(root.get("tableName")),
                 "%" + pattern.toLowerCase() + "%");

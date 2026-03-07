@@ -15,5 +15,7 @@ public interface MetaColumnRepository extends JpaRepository<MetaColumn, Long>, J
            "OR LOWER(c.remarks) LIKE LOWER(CONCAT('%',:keyword,'%')))")
     List<MetaColumn> searchByKeyword(List<Long> tableIds, String keyword);
 
+    List<MetaColumn> findByTableIdIn(List<Long> tableIds);
+
     void deleteByTableIdIn(List<Long> tableIds);
 }

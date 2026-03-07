@@ -16,5 +16,7 @@ public interface DictColumnBindingRepository extends JpaRepository<DictColumnBin
     List<DictColumnBinding> findByDatasourceIdAndSchemaNameAndTableNameAndColumnName(
             Long datasourceId, String schemaName, String tableName, String columnName);
 
+    List<DictColumnBinding> findByMetaColumnIdIn(List<Long> metaColumnIds);
+
     void deleteByDictId(Long dictId);
 }

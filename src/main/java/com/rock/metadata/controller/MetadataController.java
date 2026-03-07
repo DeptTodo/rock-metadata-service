@@ -28,12 +28,13 @@ public class MetadataController {
         return queryService.listSchemas(datasourceId);
     }
 
-    /** List tables for a datasource, optionally filter by schema. */
+    /** List tables for a datasource, optionally filter by schema or unanalyzed status. */
     @GetMapping("/datasources/{datasourceId}/tables")
     public List<MetaTable> listTables(
             @PathVariable Long datasourceId,
-            @RequestParam(required = false) String schema) {
-        return queryService.listTables(datasourceId, schema);
+            @RequestParam(required = false) String schema,
+            @RequestParam(required = false) Boolean unanalyzedOnly) {
+        return queryService.listTables(datasourceId, schema, unanalyzedOnly);
     }
 
     /** Get full detail of a table: columns, primary keys, foreign keys, indexes. */
@@ -43,8 +44,10 @@ public class MetadataController {
     }
 
     @GetMapping("/tables/{tableId}/columns")
-    public List<MetaColumn> listColumns(@PathVariable Long tableId) {
-        return queryService.listColumns(tableId);
+    public List<MetaColumn> listColumns(
+            @PathVariable Long tableId,
+            @RequestParam(required = false) Boolean unanalyzedOnly) {
+        return queryService.listColumns(tableId, unanalyzedOnly);
     }
 
     @GetMapping("/tables/{tableId}/foreign-keys")
@@ -63,7 +66,7 @@ public class MetadataController {
             @PathVariable Long datasourceId,
             @RequestParam(required = false) String schema,
             @RequestParam(required = false) String tableName) {
-        List<MetaTable> tables = queryService.listTables(datasourceId, schema);
+        List<MetaTable> tables = queryService.listTables(datasourceId, schema, null);
         if (tableName != null && !tableName.isBlank()) {
             tables = tables.stream()
                     .filter(t -> t.getTableName().equalsIgnoreCase(tableName))
@@ -189,5 +192,24 @@ public class MetadataController {
             @PathVariable Long tableId,
             @PathVariable String columnName) {
         return dataProfilingService.profileSingleColumn(datasourceId, tableId, columnName);
+    }
+
+    // ===== Data Sampling =====
+
+    @GetMapping("/datasources/{datasourceId}/tables/{tableId}/sample-rows")
+    public DataSampleResponse sampleTableRows(
+            @PathVariable Long datasourceId,
+            @PathVariable Long tableId,
+            @RequestParam(required = false) Integer limit) {
+        return dataProfilingService.sampleTableRows(datasourceId, tableId, limit);
+    }
+
+    @GetMapping("/datasources/{datasourceId}/tables/{tableId}/columns/{columnName}/distinct-values")
+    public DistinctValueResponse getDistinctColumnValues(
+            @PathVariable Long datasourceId,
+            @PathVariable Long tableId,
+            @PathVariable String columnName,
+            @RequestParam(required = false) Integer limit) {
+        return dataProfilingService.getDistinctColumnValues(datasourceId, tableId, columnName, limit);
     }
 }

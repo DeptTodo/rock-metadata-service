@@ -12,5 +12,7 @@ public interface MetaTagRepository extends JpaRepository<MetaTag, Long> {
 
     List<MetaTag> findByTagKeyAndTagValue(String tagKey, String tagValue);
 
+    List<MetaTag> findByTargetTypeAndTargetIdIn(String targetType, List<Long> targetIds);
+
     void deleteByTargetTypeAndTargetId(String targetType, Long targetId);
 }

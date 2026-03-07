@@ -33,6 +33,14 @@ public final class MetaColumnSpecifications {
         return (root, query, cb) -> cb.equal(root.get("partOfForeignKey"), value);
     }
 
+    public static Specification<MetaColumn> tableIdEquals(Long tableId) {
+        return (root, query, cb) -> cb.equal(root.get("tableId"), tableId);
+    }
+
+    public static Specification<MetaColumn> lastAnalyzedAtIsNull() {
+        return (root, query, cb) -> cb.isNull(root.get("lastAnalyzedAt"));
+    }
+
     public static Specification<MetaColumn> columnNameLike(String pattern) {
         return (root, query, cb) -> cb.like(cb.lower(root.get("columnName")),
                 "%" + pattern.toLowerCase() + "%");

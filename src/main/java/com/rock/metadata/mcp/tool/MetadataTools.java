@@ -30,11 +30,12 @@ public class MetadataTools {
         return metadataQueryService.listSchemas(datasourceId);
     }
 
-    @Tool(description = "List tables from the latest successful crawl, optionally filtered by schema name")
+    @Tool(description = "List tables from the latest successful crawl, optionally filtered by schema name or unanalyzed status")
     public List<MetaTable> list_tables(
             @ToolParam(description = "Datasource ID") Long datasourceId,
-            @ToolParam(description = "Schema name to filter by (optional)", required = false) String schema) {
-        return metadataQueryService.listTables(datasourceId, schema);
+            @ToolParam(description = "Schema name to filter by (optional)", required = false) String schema,
+            @ToolParam(description = "If true, only return tables not yet analyzed by LLM (optional)", required = false) Boolean unanalyzedOnly) {
+        return metadataQueryService.listTables(datasourceId, schema, unanalyzedOnly);
     }
 
     @Tool(description = "Get full table detail including columns, primary keys, foreign keys, " +
@@ -44,10 +45,11 @@ public class MetadataTools {
         return metadataQueryService.getTableDetail(tableId);
     }
 
-    @Tool(description = "List all columns of a table ordered by ordinal position")
+    @Tool(description = "List all columns of a table ordered by ordinal position, optionally filtered by unanalyzed status")
     public List<MetaColumn> list_columns(
-            @ToolParam(description = "Table ID") Long tableId) {
-        return metadataQueryService.listColumns(tableId);
+            @ToolParam(description = "Table ID") Long tableId,
+            @ToolParam(description = "If true, only return columns not yet analyzed by LLM (optional)", required = false) Boolean unanalyzedOnly) {
+        return metadataQueryService.listColumns(tableId, unanalyzedOnly);
     }
 
     @Tool(description = "List foreign keys of a table")
@@ -68,7 +70,7 @@ public class MetadataTools {
             @ToolParam(description = "Datasource ID") Long datasourceId,
             @ToolParam(description = "Schema name to filter by (optional)", required = false) String schema,
             @ToolParam(description = "Table name to filter by (optional)", required = false) String tableName) {
-        List<MetaTable> tables = metadataQueryService.listTables(datasourceId, schema);
+        List<MetaTable> tables = metadataQueryService.listTables(datasourceId, schema, null);
         if (tableName != null && !tableName.isBlank()) {
             tables = tables.stream()
                     .filter(t -> t.getTableName().equalsIgnoreCase(tableName))
