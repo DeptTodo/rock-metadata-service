@@ -7,15 +7,19 @@ A metadata management service that automatically crawls and catalogs database sc
 - **Multi-database support** — PostgreSQL, MySQL, Oracle, SQL Server, SQLite
 - **Async metadata crawling** — register a datasource, trigger a crawl, and query the results via REST API or MCP tools
 - **Full schema introspection** — tables, columns, primary keys, foreign keys, indexes, triggers, constraints, privileges, routines, sequences
+- **Metadata annotation** — update business attributes (display name, description, owner, domain, importance) on schemas, tables, and columns, with sensitivity/compliance tagging for columns
 - **Data dictionary management** — define dictionaries, manage items, bind to columns
 - **Metadata tagging** — attach key-value tags to schemas, tables, and columns
+- **Data quality rules** — define reusable quality rules (NOT_NULL, UNIQUE, VALUE_RANGE, REGEX_MATCH, CUSTOM_SQL, etc.), bind to columns, execute live checks with violation reporting
 - **Schema diff** — compare two crawl snapshots to detect added/removed/modified tables and columns
 - **FK relationship traversal** — BFS graph traversal with cascade impact analysis
 - **Advanced search** — multi-criteria filtering on tables and columns with JPA Specifications
-- **Data profiling** — live database profiling (distinct count, null count, min/max, sample values)
+- **Data profiling** — live database profiling (distinct count, null count, min/max, sample values, distinct value frequency)
+- **Data sampling** — sample rows and distinct column values from live databases
 - **Metadata export** — export as DDL, JSON, or Markdown documentation
 - **Health & monitoring** — freshness checking, connection test, live vs crawled table count comparison
-- **53 MCP tools** — full AI agent integration via Spring AI MCP Server (SSE at `/mcp/message`)
+- **70 MCP tools** — full AI agent integration via Spring AI MCP Server (SSE at `/sse`)
+- **Claude Code integration** — `.mcp.json` config for direct use as Claude Code MCP client
 
 ## Tech Stack
 
@@ -51,6 +55,23 @@ mvn spring-boot:run
 ```
 
 The service starts on `http://localhost:9990`.
+
+### Claude Code Integration
+
+The project includes a `.mcp.json` file that registers the MCP server for use with [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Once the service is running, Claude Code can directly use all 70 MCP tools for metadata management.
+
+```json
+{
+  "mcpServers": {
+    "rock-metadata": {
+      "type": "sse",
+      "url": "http://localhost:9990/sse?api_key=YOUR_API_KEY"
+    }
+  }
+}
+```
+
+Set the `MCP_API_KEY` environment variable (or `metadata.mcp.api-key` in `application.yml`) to enable API key authentication. If not set, authentication is disabled.
 
 ## API Reference
 
@@ -89,6 +110,14 @@ The service starts on `http://localhost:9990`.
 | `GET` | `/api/tables/{id}/foreign-keys` | List foreign keys |
 | `GET` | `/api/tables/{id}/indexes` | List indexes |
 | `GET` | `/api/routines/{id}` | Routine detail with parameters |
+
+### Metadata Annotation
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `PATCH` | `/api/schemas/{id}/attrs` | Update schema business attributes (displayName, businessDescription, owner) |
+| `PATCH` | `/api/tables/{id}/attrs` | Update table business attributes (displayName, businessDescription, businessDomain, owner, importanceLevel, dataQualityScore) |
+| `PATCH` | `/api/columns/{id}/attrs` | Update column attributes (displayName, businessDescription, businessDataType, sampleValues, valueRange, sensitivityLevel, sensitivityType, maskingStrategy, complianceFlags) |
 
 ### Advanced Analysis
 
@@ -134,6 +163,23 @@ The service starts on `http://localhost:9990`.
 | `GET` | `/api/dicts/bindings/by-column/{colId}` | List column bindings |
 | `DELETE` | `/api/dicts/bindings/{id}` | Delete binding |
 
+### Data Quality Rules
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/quality/rules` | Create a quality rule |
+| `GET` | `/api/quality/rules` | List rules (`?ruleType=&activeOnly=`) |
+| `GET` | `/api/quality/rules/{id}` | Get rule detail |
+| `PUT` | `/api/quality/rules/{id}` | Update a rule |
+| `DELETE` | `/api/quality/rules/{id}` | Delete a rule |
+| `POST` | `/api/quality/column-rules` | Bind rule to column |
+| `GET` | `/api/quality/column-rules` | List column rules (`?datasourceId=&schemaName=&tableName=&columnName=`) |
+| `GET` | `/api/quality/column-rules/by-meta-column/{id}` | List rules by MetaColumn |
+| `PUT` | `/api/quality/column-rules/{id}` | Update column rule binding |
+| `DELETE` | `/api/quality/column-rules/{id}` | Delete column rule binding |
+| `POST` | `/api/quality/check/column` | Execute quality check on a column |
+| `POST` | `/api/quality/check/table` | Execute quality check on all columns of a table |
+
 ### LLM Analysis Jobs
 
 | Method | Endpoint | Description |
@@ -147,22 +193,24 @@ The service starts on `http://localhost:9990`.
 |--------|----------|-------------|
 | `POST` | `/api/sql/execute` | Execute SQL against a datasource |
 
-## MCP Tools (53 tools)
+## MCP Tools (70 tools)
 
-The service exposes an MCP server via SSE at `/mcp/message` with the following tool groups:
+The service exposes an MCP server via SSE at `/sse` (message endpoint `/mcp/message`) with the following tool groups:
 
 | Tool Group | Count | Description |
 |------------|-------|-------------|
 | DataSourceTools | 7 | Datasource CRUD + connection testing |
 | CrawlTools | 3 | Trigger crawls, check status |
-| MetadataTools | 16 | Schema/table/column/routine/sequence queries, export, summary, health, advanced search |
+| MetadataTools | 15 | Schema/table/column/routine/sequence queries, export, summary, health, advanced search |
 | SqlTools | 1 | Execute SQL |
 | TagTools | 6 | Tag CRUD |
 | DictTools | 14 | Dictionary definitions, items, bindings CRUD |
 | LlmAnalysisTools | 2 | LLM analysis job queries |
 | SchemaDiffTools | 1 | Schema change detection between crawls |
 | RelationshipTools | 2 | FK graph traversal, impact analysis |
-| ProfilingTools | 2 | Live data profiling |
+| ProfilingTools | 4 | Live data profiling, sampling, distinct values |
+| AnnotationTools | 3 | Schema/table/column business attribute updates |
+| DataQualityTools | 12 | Quality rule CRUD, column rule bindings, live quality checks |
 
 ## Example: Register and Crawl
 
@@ -224,6 +272,7 @@ Key settings in `application.yml`:
 | `server.port` | 9990 | HTTP port |
 | `metadata.crawl.thread-pool-size` | 5 | Async crawl thread pool size |
 | `metadata.crawl.retain-count` | 2 | Number of successful crawl snapshots to retain (for schema diff) |
+| `metadata.mcp.api-key` | _(empty)_ | MCP API key for SSE authentication (env: `MCP_API_KEY`) |
 
 ## Project Structure
 
@@ -231,34 +280,38 @@ Key settings in `application.yml`:
 src/main/java/com/rock/metadata/
 ├── MetadataServiceApplication.java
 ├── controller/
-│   ├── DataSourceController.java      # Datasource CRUD + connection test
-│   ├── CrawlController.java           # Crawl trigger/status
-│   ├── MetadataController.java        # Metadata query, export, summary, health, diff, relationships, search, profiling
-│   ├── TagController.java             # Tag CRUD
-│   ├── DictController.java            # Dictionary CRUD
-│   └── SqlExecuteController.java      # SQL execution
+│   ├── DataSourceController.java          # Datasource CRUD + connection test
+│   ├── CrawlController.java              # Crawl trigger/status
+│   ├── MetadataController.java           # Metadata query, export, summary, health, diff, relationships, search, profiling
+│   ├── MetadataAnnotationController.java  # Schema/table/column business attribute updates
+│   ├── DataQualityController.java         # Quality rule CRUD, column rule bindings, quality checks
+│   ├── TagController.java                # Tag CRUD
+│   ├── DictController.java               # Dictionary CRUD
+│   └── SqlExecuteController.java         # SQL execution
 ├── service/
-│   ├── CrawlService.java              # Async crawl + SchemaCrawler integration
-│   ├── MetadataQueryService.java      # Metadata reads + advanced search
-│   ├── SqlExecuteService.java         # SQL execution against target DBs
-│   ├── TagService.java                # Tag CRUD logic
-│   ├── DictService.java               # Dictionary management
-│   ├── ConnectionTestService.java     # JDBC connection testing
-│   ├── MetadataExportService.java     # DDL/JSON/Markdown export
-│   ├── DatasourceSummaryService.java  # Statistics & overview
-│   ├── MetadataHealthService.java     # Freshness & health checking
-│   ├── SchemaDiffService.java         # Schema change detection
-│   ├── RelationshipService.java       # FK traversal & impact analysis
-│   ├── DataProfilingService.java      # Live data profiling
-│   └── JdbcUrlBuilder.java            # JDBC URL construction utility
+│   ├── CrawlService.java                 # Async crawl + SchemaCrawler integration
+│   ├── MetadataQueryService.java         # Metadata reads + advanced search
+│   ├── MetadataAnnotationService.java    # Business attribute updates for schemas/tables/columns
+│   ├── DataQualityService.java           # Quality rule management + live quality checks
+│   ├── SqlExecuteService.java            # SQL execution against target DBs
+│   ├── TagService.java                   # Tag CRUD logic
+│   ├── DictService.java                  # Dictionary management
+│   ├── ConnectionTestService.java        # JDBC connection testing
+│   ├── MetadataExportService.java        # DDL/JSON/Markdown export
+│   ├── DatasourceSummaryService.java     # Statistics & overview
+│   ├── MetadataHealthService.java        # Freshness & health checking
+│   ├── SchemaDiffService.java            # Schema change detection
+│   ├── RelationshipService.java          # FK traversal & impact analysis
+│   ├── DataProfilingService.java         # Live data profiling
+│   └── JdbcUrlBuilder.java              # JDBC URL construction utility
 ├── mcp/
-│   ├── McpServerConfig.java           # Registers 10 tool providers
-│   └── tool/                          # 10 @Tool classes (53 tools total)
-├── model/                             # 19 JPA entities
-├── dto/                               # 18 request/response DTOs
+│   ├── McpServerConfig.java              # Registers 12 tool providers
+│   └── tool/                             # 12 @Tool classes (70 tools total)
+├── model/                                # 21 JPA entities + 7 enums
+├── dto/                                  # 33 request/response DTOs
 └── repository/
-    ├── ...Repository.java             # 19 Spring Data JPA repositories
-    └── spec/                          # JPA Specifications for advanced search
+    ├── ...Repository.java                # 21 Spring Data JPA repositories
+    └── spec/                             # JPA Specifications for advanced search
 ```
 
 ## License
