@@ -1,8 +1,6 @@
 package com.rock.metadata.mcp.tool;
 
 import com.rock.metadata.dto.ColumnQualityCheckResponse;
-import com.rock.metadata.model.ColumnQualityRule;
-import com.rock.metadata.model.QualityRule;
 import com.rock.metadata.service.DataQualityService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
@@ -10,6 +8,7 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
@@ -23,7 +22,7 @@ public class DataQualityTools {
             "LENGTH_RANGE, REGEX_MATCH, ENUM_VALUES, NOT_BLANK, CUSTOM_SQL. " +
             "Severity levels: CRITICAL, MAJOR, MINOR, INFO. " +
             "Params is a JSON string for rule configuration, e.g. {\"min\":0,\"max\":100} for VALUE_RANGE.")
-    public QualityRule create_quality_rule(
+    public Map<String, Object> create_quality_rule(
             @ToolParam(description = "Unique rule code, e.g. NOT_NULL, RANGE_0_100") String ruleCode,
             @ToolParam(description = "Display name for the rule") String ruleName,
             @ToolParam(description = "Rule type: NOT_NULL, UNIQUE, VALUE_RANGE, LENGTH_RANGE, REGEX_MATCH, ENUM_VALUES, NOT_BLANK, CUSTOM_SQL") String ruleType,
@@ -31,27 +30,28 @@ public class DataQualityTools {
             @ToolParam(description = "Default severity: CRITICAL, MAJOR, MINOR, INFO") String defaultSeverity,
             @ToolParam(description = "Default params as JSON (optional)", required = false) String defaultParams) {
         return ToolExecutor.run("create quality rule", () ->
-                dataQualityService.createRule(ruleCode, ruleName, ruleType, description,
-                        defaultSeverity, defaultParams));
+                McpResponseHelper.compact(dataQualityService.createRule(ruleCode, ruleName, ruleType, description,
+                        defaultSeverity, defaultParams)));
     }
 
     @Tool(description = "List data quality rule definitions, optionally filtered by rule type or active status")
-    public List<QualityRule> list_quality_rules(
+    public List<Map<String, Object>> list_quality_rules(
             @ToolParam(description = "Filter by rule type (optional)", required = false) String ruleType,
             @ToolParam(description = "Only show active rules (optional)", required = false) Boolean activeOnly) {
         return ToolExecutor.run("list quality rules", () ->
-                dataQualityService.listRules(ruleType, activeOnly));
+                dataQualityService.listRules(ruleType, activeOnly).stream()
+                        .map(McpResponseHelper::compact).toList());
     }
 
     @Tool(description = "Get a data quality rule definition by ID")
-    public QualityRule get_quality_rule(
+    public Map<String, Object> get_quality_rule(
             @ToolParam(description = "Rule ID") Long ruleId) {
         return ToolExecutor.run("get quality rule", () ->
-                dataQualityService.getRule(ruleId));
+                McpResponseHelper.compact(dataQualityService.getRule(ruleId)));
     }
 
     @Tool(description = "Update a data quality rule definition. Only provided fields will be updated.")
-    public QualityRule update_quality_rule(
+    public Map<String, Object> update_quality_rule(
             @ToolParam(description = "Rule ID") Long ruleId,
             @ToolParam(description = "New display name (optional)", required = false) String ruleName,
             @ToolParam(description = "New description (optional)", required = false) String description,
@@ -59,7 +59,8 @@ public class DataQualityTools {
             @ToolParam(description = "New default params as JSON (optional)", required = false) String defaultParams,
             @ToolParam(description = "Enable/disable the rule (optional)", required = false) Boolean active) {
         return ToolExecutor.run("update quality rule", () ->
-                dataQualityService.updateRule(ruleId, ruleName, description, defaultSeverity, defaultParams, active));
+                McpResponseHelper.compact(dataQualityService.updateRule(ruleId, ruleName, description,
+                        defaultSeverity, defaultParams, active)));
     }
 
     @Tool(description = "Delete a data quality rule definition and all its column bindings. Built-in rules cannot be deleted.")
@@ -73,7 +74,7 @@ public class DataQualityTools {
 
     @Tool(description = "Bind a quality rule to a specific database column. " +
             "Severity and params can override the rule defaults.")
-    public ColumnQualityRule bind_quality_rule_to_column(
+    public Map<String, Object> bind_quality_rule_to_column(
             @ToolParam(description = "Quality rule ID") Long ruleId,
             @ToolParam(description = "Datasource ID") Long datasourceId,
             @ToolParam(description = "Schema name (optional)", required = false) String schemaName,
@@ -83,35 +84,37 @@ public class DataQualityTools {
             @ToolParam(description = "Override severity: CRITICAL, MAJOR, MINOR, INFO (optional)", required = false) String severity,
             @ToolParam(description = "Override params as JSON (optional)", required = false) String params) {
         return ToolExecutor.run("bind quality rule to column", () ->
-                dataQualityService.bindRuleToColumn(ruleId, datasourceId, schemaName, tableName,
-                        columnName, metaColumnId, severity, params));
+                McpResponseHelper.compact(dataQualityService.bindRuleToColumn(ruleId, datasourceId, schemaName,
+                        tableName, columnName, metaColumnId, severity, params)));
     }
 
     @Tool(description = "List column quality rule bindings, filterable by datasource, table, and column")
-    public List<ColumnQualityRule> list_column_quality_rules(
+    public List<Map<String, Object>> list_column_quality_rules(
             @ToolParam(description = "Datasource ID") Long datasourceId,
             @ToolParam(description = "Schema name (optional)", required = false) String schemaName,
             @ToolParam(description = "Table name (optional)", required = false) String tableName,
             @ToolParam(description = "Column name (optional)", required = false) String columnName) {
         return ToolExecutor.run("list column quality rules", () ->
-                dataQualityService.listColumnRules(datasourceId, schemaName, tableName, columnName));
+                dataQualityService.listColumnRules(datasourceId, schemaName, tableName, columnName).stream()
+                        .map(McpResponseHelper::compact).toList());
     }
 
     @Tool(description = "List column quality rule bindings by MetaColumn ID")
-    public List<ColumnQualityRule> list_column_quality_rules_by_meta_column(
+    public List<Map<String, Object>> list_column_quality_rules_by_meta_column(
             @ToolParam(description = "MetaColumn ID") Long metaColumnId) {
         return ToolExecutor.run("list column quality rules", () ->
-                dataQualityService.listColumnRulesByMetaColumn(metaColumnId));
+                dataQualityService.listColumnRulesByMetaColumn(metaColumnId).stream()
+                        .map(McpResponseHelper::compact).toList());
     }
 
     @Tool(description = "Update a column quality rule binding. Only provided fields will be updated.")
-    public ColumnQualityRule update_column_quality_rule(
+    public Map<String, Object> update_column_quality_rule(
             @ToolParam(description = "Column quality rule binding ID") Long id,
             @ToolParam(description = "New severity (optional)", required = false) String severity,
             @ToolParam(description = "New params as JSON (optional)", required = false) String params,
             @ToolParam(description = "Enable/disable (optional)", required = false) Boolean enabled) {
         return ToolExecutor.run("update column quality rule", () ->
-                dataQualityService.updateColumnRule(id, severity, params, enabled));
+                McpResponseHelper.compact(dataQualityService.updateColumnRule(id, severity, params, enabled)));
     }
 
     @Tool(description = "Delete a column quality rule binding")

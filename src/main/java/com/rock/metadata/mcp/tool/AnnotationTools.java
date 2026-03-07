@@ -3,14 +3,13 @@ package com.rock.metadata.mcp.tool;
 import com.rock.metadata.dto.UpdateColumnAttrsRequest;
 import com.rock.metadata.dto.UpdateSchemaAttrsRequest;
 import com.rock.metadata.dto.UpdateTableAttrsRequest;
-import com.rock.metadata.model.MetaColumn;
-import com.rock.metadata.model.MetaSchema;
-import com.rock.metadata.model.MetaTable;
 import com.rock.metadata.service.MetadataAnnotationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
+
+import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
@@ -21,7 +20,7 @@ public class AnnotationTools {
     @Tool(description = "Update business attributes of a schema. " +
             "All fields are optional — only provided fields will be updated. " +
             "Fields: displayName, businessDescription, owner.")
-    public MetaSchema update_schema_attrs(
+    public Map<String, Object> update_schema_attrs(
             @ToolParam(description = "Schema ID") Long schemaId,
             @ToolParam(description = "Business display name (optional)", required = false) String displayName,
             @ToolParam(description = "Business description (optional)", required = false) String businessDescription,
@@ -31,14 +30,14 @@ public class AnnotationTools {
             req.setDisplayName(displayName);
             req.setBusinessDescription(businessDescription);
             req.setOwner(owner);
-            return annotationService.updateSchemaAttrs(schemaId, req);
+            return McpResponseHelper.compact(annotationService.updateSchemaAttrs(schemaId, req));
         });
     }
 
     @Tool(description = "Update business attributes of a table. " +
             "All fields are optional — only provided fields will be updated. " +
             "Fields: displayName, businessDescription, businessDomain, owner, importanceLevel, dataQualityScore.")
-    public MetaTable update_table_attrs(
+    public Map<String, Object> update_table_attrs(
             @ToolParam(description = "Table ID") Long tableId,
             @ToolParam(description = "Business display name, e.g. '用户表' (optional)", required = false) String displayName,
             @ToolParam(description = "Business description (optional)", required = false) String businessDescription,
@@ -54,7 +53,7 @@ public class AnnotationTools {
             req.setOwner(owner);
             req.setImportanceLevel(importanceLevel);
             req.setDataQualityScore(dataQualityScore);
-            return annotationService.updateTableAttrs(tableId, req);
+            return McpResponseHelper.compact(annotationService.updateTableAttrs(tableId, req));
         });
     }
 
@@ -62,7 +61,7 @@ public class AnnotationTools {
             "All fields are optional — only provided fields will be updated. " +
             "Fields: displayName, businessDescription, businessDataType, sampleValues, valueRange, " +
             "sensitivityLevel, sensitivityType, maskingStrategy, complianceFlags.")
-    public MetaColumn update_column_attrs(
+    public Map<String, Object> update_column_attrs(
             @ToolParam(description = "Column ID") Long columnId,
             @ToolParam(description = "Business display name, e.g. '年龄' (optional)", required = false) String displayName,
             @ToolParam(description = "Business description (optional)", required = false) String businessDescription,
@@ -84,7 +83,7 @@ public class AnnotationTools {
             req.setSensitivityType(sensitivityType);
             req.setMaskingStrategy(maskingStrategy);
             req.setComplianceFlags(complianceFlags);
-            return annotationService.updateColumnAttrs(columnId, req);
+            return McpResponseHelper.compact(annotationService.updateColumnAttrs(columnId, req));
         });
     }
 }

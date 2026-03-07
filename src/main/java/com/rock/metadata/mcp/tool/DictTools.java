@@ -1,9 +1,5 @@
 package com.rock.metadata.mcp.tool;
 
-import com.rock.metadata.dto.DictDetailResponse;
-import com.rock.metadata.model.DictColumnBinding;
-import com.rock.metadata.model.DictDefinition;
-import com.rock.metadata.model.DictItem;
 import com.rock.metadata.service.DictService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
@@ -11,6 +7,9 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
+
+import static com.rock.metadata.mcp.tool.McpResponseHelper.*;
 
 @Component
 @RequiredArgsConstructor
@@ -21,7 +20,7 @@ public class DictTools {
     // ===== Dict Definition =====
 
     @Tool(description = "Create a new data dictionary definition")
-    public DictDefinition create_dict(
+    public Map<String, Object> create_dict(
             @ToolParam(description = "Unique dict code, e.g. GENDER, ORDER_STATUS") String dictCode,
             @ToolParam(description = "Display name for the dictionary") String dictName,
             @ToolParam(description = "Dict structure type: FLAT, TREE, or ENUM") String dictType,
@@ -33,41 +32,42 @@ public class DictTools {
             @ToolParam(description = "Source table name (optional)", required = false) String sourceTableName,
             @ToolParam(description = "Source info (optional)", required = false) String sourceInfo) {
         return ToolExecutor.run("create dict", () ->
-                dictService.createDict(dictCode, dictName, dictType, description, version,
-                        sourceType, datasourceId, sourceSchemaName, sourceTableName, sourceInfo));
+                compact(dictService.createDict(dictCode, dictName, dictType, description, version,
+                        sourceType, datasourceId, sourceSchemaName, sourceTableName, sourceInfo)));
     }
 
     @Tool(description = "List data dictionaries, optionally filtered by datasource or active status")
-    public List<DictDefinition> list_dicts(
+    public List<Map<String, Object>> list_dicts(
             @ToolParam(description = "Datasource ID (optional)", required = false) Long datasourceId,
             @ToolParam(description = "Only show active dicts (optional)", required = false) Boolean activeOnly) {
         return ToolExecutor.run("list dicts", () ->
-                dictService.listDicts(datasourceId, activeOnly));
+                dictService.listDicts(datasourceId, activeOnly).stream()
+                        .map(McpResponseHelper::compact).toList());
     }
 
     @Tool(description = "Get dictionary detail with all items by dict ID")
-    public DictDetailResponse get_dict_detail(
+    public Map<String, Object> get_dict_detail(
             @ToolParam(description = "Dict ID") Long dictId) {
         return ToolExecutor.run("get dict detail", () ->
-                dictService.getDictDetail(dictId));
+                compactDictDetail(dictService.getDictDetail(dictId)));
     }
 
     @Tool(description = "Get dictionary detail with all items by dict code")
-    public DictDetailResponse get_dict_by_code(
+    public Map<String, Object> get_dict_by_code(
             @ToolParam(description = "Dict code, e.g. GENDER") String dictCode) {
         return ToolExecutor.run("get dict by code", () ->
-                dictService.getDictByCode(dictCode));
+                compactDictDetail(dictService.getDictByCode(dictCode)));
     }
 
     @Tool(description = "Update a dictionary definition")
-    public DictDefinition update_dict(
+    public Map<String, Object> update_dict(
             @ToolParam(description = "Dict ID") Long dictId,
             @ToolParam(description = "New display name (optional)", required = false) String dictName,
             @ToolParam(description = "New description (optional)", required = false) String description,
             @ToolParam(description = "New version (optional)", required = false) String version,
             @ToolParam(description = "Active flag (optional)", required = false) Boolean active) {
         return ToolExecutor.run("update dict", () ->
-                dictService.updateDict(dictId, dictName, description, version, active));
+                compact(dictService.updateDict(dictId, dictName, description, version, active)));
     }
 
     @Tool(description = "Delete a dictionary and all its items and bindings")
@@ -80,7 +80,7 @@ public class DictTools {
     // ===== Dict Items =====
 
     @Tool(description = "Add an item to a dictionary")
-    public DictItem add_dict_item(
+    public Map<String, Object> add_dict_item(
             @ToolParam(description = "Dict ID") Long dictId,
             @ToolParam(description = "Parent item ID for tree dicts (optional)", required = false) Long parentId,
             @ToolParam(description = "Item code (stored value), e.g. M, F, 1") String itemCode,
@@ -90,20 +90,21 @@ public class DictTools {
             @ToolParam(description = "Tree level depth (optional)", required = false) Integer treeLevel,
             @ToolParam(description = "Extended attributes as JSON (optional)", required = false) String extAttrs) {
         return ToolExecutor.run("add dict item", () ->
-                dictService.addDictItem(dictId, parentId, itemCode, itemValue,
-                        itemDescription, sortOrder, treeLevel, extAttrs));
+                compact(dictService.addDictItem(dictId, parentId, itemCode, itemValue,
+                        itemDescription, sortOrder, treeLevel, extAttrs)));
     }
 
     @Tool(description = "List items of a dictionary")
-    public List<DictItem> list_dict_items(
+    public List<Map<String, Object>> list_dict_items(
             @ToolParam(description = "Dict ID") Long dictId,
             @ToolParam(description = "Only show active items (optional)", required = false) Boolean activeOnly) {
         return ToolExecutor.run("list dict items", () ->
-                dictService.listDictItems(dictId, activeOnly));
+                dictService.listDictItems(dictId, activeOnly).stream()
+                        .map(McpResponseHelper::compact).toList());
     }
 
     @Tool(description = "Update a dictionary item")
-    public DictItem update_dict_item(
+    public Map<String, Object> update_dict_item(
             @ToolParam(description = "Item ID") Long itemId,
             @ToolParam(description = "New item code (optional)", required = false) String itemCode,
             @ToolParam(description = "New item value (optional)", required = false) String itemValue,
@@ -111,7 +112,7 @@ public class DictTools {
             @ToolParam(description = "New sort order (optional)", required = false) Integer sortOrder,
             @ToolParam(description = "Active flag (optional)", required = false) Boolean active) {
         return ToolExecutor.run("update dict item", () ->
-                dictService.updateDictItem(itemId, itemCode, itemValue, itemDescription, sortOrder, active));
+                compact(dictService.updateDictItem(itemId, itemCode, itemValue, itemDescription, sortOrder, active)));
     }
 
     @Tool(description = "Delete a dictionary item")
@@ -124,7 +125,7 @@ public class DictTools {
     // ===== Dict Bindings =====
 
     @Tool(description = "Bind a dictionary to a database column")
-    public DictColumnBinding bind_dict_to_column(
+    public Map<String, Object> bind_dict_to_column(
             @ToolParam(description = "Dict ID") Long dictId,
             @ToolParam(description = "Datasource ID") Long datasourceId,
             @ToolParam(description = "Schema name (optional)", required = false) String schemaName,
@@ -134,22 +135,24 @@ public class DictTools {
             @ToolParam(description = "Binding type: MANUAL, NAME_MATCH, or LLM_INFERRED") String bindingType,
             @ToolParam(description = "Confidence score 0.0-1.0 (optional)", required = false) Double confidence) {
         return ToolExecutor.run("bind dict to column", () ->
-                dictService.bindDictToColumn(dictId, datasourceId, schemaName, tableName,
-                        columnName, metaColumnId, bindingType, confidence));
+                compact(dictService.bindDictToColumn(dictId, datasourceId, schemaName, tableName,
+                        columnName, metaColumnId, bindingType, confidence)));
     }
 
     @Tool(description = "List column bindings for a dictionary")
-    public List<DictColumnBinding> list_dict_bindings(
+    public List<Map<String, Object>> list_dict_bindings(
             @ToolParam(description = "Dict ID") Long dictId) {
         return ToolExecutor.run("list dict bindings", () ->
-                dictService.listDictBindings(dictId));
+                dictService.listDictBindings(dictId).stream()
+                        .map(McpResponseHelper::compact).toList());
     }
 
     @Tool(description = "List dictionary bindings for a specific column")
-    public List<DictColumnBinding> list_column_dict_bindings(
+    public List<Map<String, Object>> list_column_dict_bindings(
             @ToolParam(description = "MetaColumn ID") Long metaColumnId) {
         return ToolExecutor.run("list column dict bindings", () ->
-                dictService.listColumnDictBindings(metaColumnId));
+                dictService.listColumnDictBindings(metaColumnId).stream()
+                        .map(McpResponseHelper::compact).toList());
     }
 
     @Tool(description = "Delete a dictionary-column binding")

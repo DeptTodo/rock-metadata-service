@@ -8,15 +8,11 @@ import com.rock.metadata.service.CrawlService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
-import static com.rock.metadata.mcp.tool.McpResponseHelper.*;
 
 @Component
 @RequiredArgsConstructor
@@ -28,7 +24,7 @@ public class CrawlTools {
 
     @Tool(description = "Trigger an asynchronous metadata crawl for a datasource. " +
             "Returns immediately with a PENDING job. Use get_crawl_job_status to poll for completion.")
-    public CrawlJob trigger_crawl(
+    public Map<String, Object> trigger_crawl(
             @ToolParam(description = "Datasource ID to crawl") Long datasourceId,
             @ToolParam(description = "Schema info level: minimum, standard, detailed, maximum (default: maximum)",
                     required = false) String infoLevel) {
@@ -39,17 +35,17 @@ public class CrawlTools {
             String level = (infoLevel != null && !infoLevel.isBlank()) ? infoLevel : "maximum";
             CrawlJob job = crawlService.createJob(datasourceId, level);
             crawlService.executeCrawl(job, dsConfig);
-            return job;
+            return McpResponseHelper.compact(job);
         });
     }
 
     @Tool(description = "Get the status and results of a crawl job. " +
             "Status will be PENDING, RUNNING, SUCCESS, or FAILED.")
-    public CrawlJob get_crawl_job_status(
+    public Map<String, Object> get_crawl_job_status(
             @ToolParam(description = "Crawl job ID") Long jobId) {
         return ToolExecutor.run("get crawl job status", () ->
-                crawlJobRepository.findById(jobId)
-                        .orElseThrow(() -> new IllegalArgumentException("CrawlJob not found: " + jobId)));
+                McpResponseHelper.compact(crawlJobRepository.findById(jobId)
+                        .orElseThrow(() -> new IllegalArgumentException("CrawlJob not found: " + jobId))));
     }
 
     @Tool(description = "List crawl jobs, optionally filtered by datasource ID. " +
@@ -67,24 +63,8 @@ public class CrawlTools {
             }
             return jobs.stream()
                     .limit(effectiveLimit)
-                    .map(this::toCrawlJobSummary)
+                    .map(McpResponseHelper::compact)
                     .toList();
         });
-    }
-
-    private Map<String, Object> toCrawlJobSummary(CrawlJob job) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("id", job.getId());
-        m.put("datasourceId", job.getDatasourceId());
-        m.put("status", job.getStatus());
-        m.put("infoLevel", job.getInfoLevel());
-        m.put("tableCount", job.getTableCount());
-        m.put("columnCount", job.getColumnCount());
-        m.put("routineCount", job.getRoutineCount());
-        m.put("errorMessage", truncate(job.getErrorMessage(), MEDIUM_TEXT));
-        m.put("startedAt", job.getStartedAt());
-        m.put("finishedAt", job.getFinishedAt());
-        m.put("createdAt", job.getCreatedAt());
-        return m;
     }
 }

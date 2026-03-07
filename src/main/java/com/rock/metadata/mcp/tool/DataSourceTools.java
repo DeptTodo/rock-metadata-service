@@ -10,6 +10,7 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
@@ -20,7 +21,7 @@ public class DataSourceTools {
 
     @Tool(description = "Register a new database datasource for metadata crawling. " +
             "Supports postgresql, mysql, oracle, sqlserver, sqlite.")
-    public DataSourceConfig register_datasource(
+    public Map<String, Object> register_datasource(
             @ToolParam(description = "Display name for this datasource") String name,
             @ToolParam(description = "Database type: postgresql, mysql, oracle, sqlserver, sqlite") String dbType,
             @ToolParam(description = "Database hostname", required = false) String host,
@@ -43,25 +44,27 @@ public class DataSourceTools {
             ds.setJdbcUrl(jdbcUrl);
             ds.setSchemaPatterns(schemaPatterns);
             ds.setDescription(description);
-            return repository.save(ds);
+            return McpResponseHelper.compact(repository.save(ds));
         });
     }
 
     @Tool(description = "List all registered datasources")
-    public List<DataSourceConfig> list_datasources() {
-        return ToolExecutor.run("list datasources", repository::findAll);
+    public List<Map<String, Object>> list_datasources() {
+        return ToolExecutor.run("list datasources", () ->
+                repository.findAll().stream()
+                        .map(McpResponseHelper::compact).toList());
     }
 
     @Tool(description = "Get details of a specific datasource by its ID")
-    public DataSourceConfig get_datasource(
+    public Map<String, Object> get_datasource(
             @ToolParam(description = "Datasource ID") Long datasourceId) {
         return ToolExecutor.run("get datasource", () ->
-                repository.findById(datasourceId)
-                        .orElseThrow(() -> new IllegalArgumentException("DataSource not found: " + datasourceId)));
+                McpResponseHelper.compact(repository.findById(datasourceId)
+                        .orElseThrow(() -> new IllegalArgumentException("DataSource not found: " + datasourceId))));
     }
 
     @Tool(description = "Update an existing datasource configuration. Only provided fields will be updated.")
-    public DataSourceConfig update_datasource(
+    public Map<String, Object> update_datasource(
             @ToolParam(description = "Datasource ID to update") Long datasourceId,
             @ToolParam(description = "Display name", required = false) String name,
             @ToolParam(description = "Database type: postgresql, mysql, oracle, sqlserver, sqlite", required = false) String dbType,
@@ -86,7 +89,7 @@ public class DataSourceTools {
             if (jdbcUrl != null) ds.setJdbcUrl(jdbcUrl);
             if (schemaPatterns != null) ds.setSchemaPatterns(schemaPatterns);
             if (description != null) ds.setDescription(description);
-            return repository.save(ds);
+            return McpResponseHelper.compact(repository.save(ds));
         });
     }
 
