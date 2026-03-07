@@ -165,6 +165,34 @@ public class DatasetExecutionService {
                 }
             }
 
+            // Build required join columns per node for tree assembly
+            // Each node needs its child join column (from relations where it's child)
+            // and parent join columns (from relations where it's parent)
+            Map<String, Set<String>> requiredJoinColumns = new HashMap<>();
+            // Track frequency of parentJoinColumn per node to determine ROOT key column
+            Map<String, Map<String, Integer>> parentJoinFrequency = new HashMap<>();
+            for (DatasetNodeRelation r : enabledRelations) {
+                if (r.getChildJoinColumn() != null) {
+                    requiredJoinColumns.computeIfAbsent(r.getChildNodeCode(),
+                            k -> new LinkedHashSet<>()).add(r.getChildJoinColumn());
+                }
+                if (r.getParentJoinColumn() != null) {
+                    requiredJoinColumns.computeIfAbsent(r.getParentNodeCode(),
+                            k -> new LinkedHashSet<>()).add(r.getParentJoinColumn());
+                    parentJoinFrequency.computeIfAbsent(r.getParentNodeCode(),
+                            k -> new HashMap<>())
+                            .merge(r.getParentJoinColumn(), 1, Integer::sum);
+                }
+            }
+            // Determine the ROOT node's key column: the most frequently used parentJoinColumn
+            String rootKeyColumn = null;
+            Map<String, Integer> rootFreq = parentJoinFrequency.get(def.getRootNodeCode());
+            if (rootFreq != null) {
+                rootKeyColumn = rootFreq.entrySet().stream()
+                        .max(Map.Entry.comparingByValue())
+                        .map(Map.Entry::getKey).orElse(null);
+            }
+
             // Execute each node
             // nodeCode -> list of row maps
             Map<String, List<Map<String, Object>>> nodeResults = new LinkedHashMap<>();
@@ -195,8 +223,9 @@ public class DatasetExecutionService {
                                 nodeMappings.get(nodeCode),
                                 nodeFilters.get(nodeCode),
                                 childRelationMap.get(nodeCode),
-                                nodeResults, params, rootKeyValue,
-                                transformRules, dictCache);
+                                nodeResults, params, rootKeyValue, rootKeyColumn,
+                                transformRules, dictCache, nodeMappings,
+                                requiredJoinColumns.getOrDefault(nodeCode, Set.of()));
 
                         nodeResults.put(nodeCode, rows);
                         totalRows += rows.size();
@@ -226,7 +255,7 @@ public class DatasetExecutionService {
                 outputJson = MAPPER.writeValueAsString(nodeResults);
             } else {
                 Object tree = assembleTree(def.getRootNodeCode(), nodeMap, nodeResults,
-                        enabledRelations);
+                        enabledRelations, nodeMappings);
                 outputJson = MAPPER.writeValueAsString(tree);
             }
 
@@ -261,9 +290,11 @@ public class DatasetExecutionService {
             List<DatasetFieldMapping> mappings, List<DatasetNodeFilter> filters,
             DatasetNodeRelation relation,
             Map<String, List<Map<String, Object>>> parentResults,
-            Map<String, String> params, String rootKeyValue,
+            Map<String, String> params, String rootKeyValue, String rootKeyColumn,
             Map<Long, DatasetTransformRule> transformRules,
-            Map<String, List<DictItem>> dictCache) throws SQLException {
+            Map<String, List<DictItem>> dictCache,
+            Map<String, List<DatasetFieldMapping>> allNodeMappings,
+            Set<String> requiredJoinColumns) throws SQLException {
 
         int maxRows = Math.min(node.getMaxRows() != null ? node.getMaxRows() : defaultMaxRowsPerNode,
                 defaultMaxRowsPerNode);
@@ -312,6 +343,20 @@ public class DatasetExecutionService {
             selectCols.append("*");
         }
 
+        // Ensure join columns are included in SELECT for tree assembly
+        // Without these, parent-child matching in assembleTree would fail
+        if (mappings != null && !mappings.isEmpty() && !requiredJoinColumns.isEmpty()) {
+            Set<String> selectedSourceFields = new HashSet<>();
+            for (DatasetFieldMapping m : mappings) {
+                selectedSourceFields.add(m.getSourceField().toLowerCase());
+            }
+            for (String joinCol : requiredJoinColumns) {
+                if (!selectedSourceFields.contains(joinCol.toLowerCase())) {
+                    selectCols.append(", ").append(JdbcUrlBuilder.quoteIdentifier(dbType, joinCol));
+                }
+            }
+        }
+
         // Build WHERE clauses
         List<String> whereClauses = new ArrayList<>();
         List<Object> whereParams = new ArrayList<>();
@@ -319,57 +364,61 @@ public class DatasetExecutionService {
         // Parent key join (for non-root nodes)
         if (relation != null && node.getParentNodeCode() != null) {
             List<Map<String, Object>> parentRows = parentResults.get(relation.getParentNodeCode());
-            if (parentRows != null && !parentRows.isEmpty()) {
-                String parentCol = relation.getParentJoinColumn();
-                String childCol = relation.getChildJoinColumn();
+            if (parentRows == null || parentRows.isEmpty()) {
+                return List.of(); // Parent has no rows, child should return empty too
+            }
+            String parentCol = relation.getParentJoinColumn();
+            String childCol = relation.getChildJoinColumn();
 
-                if ("CUSTOM_SQL".equals(relation.getRelationType())) {
-                    if (relation.getJoinExpression() != null) {
-                        if (DatasetTransformEngine.containsDangerousKeywords(relation.getJoinExpression())) {
-                            throw new SQLException("Dangerous SQL in join expression");
-                        }
-                        whereClauses.add("(" + relation.getJoinExpression() + ")");
+            if ("CUSTOM_SQL".equals(relation.getRelationType())) {
+                if (relation.getJoinExpression() != null) {
+                    if (DatasetTransformEngine.containsDangerousKeywords(relation.getJoinExpression())) {
+                        throw new SQLException("Dangerous SQL in join expression");
                     }
-                } else if (parentCol != null && childCol != null) {
-                    Set<Object> parentKeyValues = new LinkedHashSet<>();
-                    for (Map<String, Object> row : parentRows) {
-                        Object val = row.get(parentCol);
-                        if (val == null) {
-                            // Try case-insensitive lookup
-                            for (Map.Entry<String, Object> e : row.entrySet()) {
-                                if (e.getKey().equalsIgnoreCase(parentCol)) {
-                                    val = e.getValue();
-                                    break;
-                                }
+                    whereClauses.add("(" + relation.getJoinExpression() + ")");
+                }
+            } else if (parentCol != null && childCol != null) {
+                // Resolve the parent join column to the output field name
+                // Parent rows use output field names (from field mappings), not source column names
+                String parentLookupKey = resolveOutputFieldName(
+                        relation.getParentNodeCode(), parentCol, allNodeMappings);
+
+                Set<Object> parentKeyValues = new LinkedHashSet<>();
+                for (Map<String, Object> row : parentRows) {
+                    Object val = row.get(parentLookupKey);
+                    if (val == null) {
+                        // Try case-insensitive lookup
+                        for (Map.Entry<String, Object> e : row.entrySet()) {
+                            if (e.getKey().equalsIgnoreCase(parentLookupKey)) {
+                                val = e.getValue();
+                                break;
                             }
                         }
-                        if (val != null) parentKeyValues.add(val);
                     }
-                    if (parentKeyValues.isEmpty()) {
-                        return List.of(); // No parent keys, no child results
-                    }
-                    // Batch IN clause
-                    List<Object> keyList = new ArrayList<>(parentKeyValues);
-                    StringBuilder inClause = new StringBuilder();
-                    inClause.append(JdbcUrlBuilder.quoteIdentifier(dbType, childCol)).append(" IN (");
-                    int count = Math.min(keyList.size(), BATCH_SIZE);
-                    for (int i = 0; i < count; i++) {
-                        if (i > 0) inClause.append(", ");
-                        inClause.append("?");
-                        whereParams.add(keyList.get(i));
-                    }
-                    inClause.append(")");
-                    whereClauses.add(inClause.toString());
+                    if (val != null) parentKeyValues.add(val);
                 }
+                if (parentKeyValues.isEmpty()) {
+                    return List.of(); // No parent keys, no child results
+                }
+                // Batch IN clause
+                List<Object> keyList = new ArrayList<>(parentKeyValues);
+                StringBuilder inClause = new StringBuilder();
+                inClause.append(JdbcUrlBuilder.quoteIdentifier(dbType, childCol)).append(" IN (");
+                int count = Math.min(keyList.size(), BATCH_SIZE);
+                for (int i = 0; i < count; i++) {
+                    if (i > 0) inClause.append(", ");
+                    inClause.append("?");
+                    whereParams.add(keyList.get(i));
+                }
+                inClause.append(")");
+                whereClauses.add(inClause.toString());
             }
         }
 
         // Root key value filter for ROOT node
         if ("ROOT".equals(node.getNodeType()) && rootKeyValue != null && !rootKeyValue.isBlank()) {
-            // Use the first relation's parentJoinColumn or first PK-like column from mappings
-            if (relation != null && relation.getParentJoinColumn() != null) {
-                whereClauses.add(JdbcUrlBuilder.quoteIdentifier(dbType,
-                        relation.getParentJoinColumn()) + " = ?");
+            if (rootKeyColumn != null) {
+                whereClauses.add(JdbcUrlBuilder.quoteIdentifier(dbType, rootKeyColumn) + " = ?");
                 whereParams.add(rootKeyValue);
             }
         }
@@ -466,10 +515,29 @@ public class DatasetExecutionService {
         }
     }
 
+    /**
+     * Resolves the output field name for a given source column in a node's field mappings.
+     * Parent rows use output field names (aliases), so we need to map source column → output field.
+     */
+    private String resolveOutputFieldName(String nodeCode, String sourceColumn,
+                                          Map<String, List<DatasetFieldMapping>> allNodeMappings) {
+        List<DatasetFieldMapping> parentMappings = allNodeMappings.get(nodeCode);
+        if (parentMappings != null) {
+            for (DatasetFieldMapping m : parentMappings) {
+                if (sourceColumn.equalsIgnoreCase(m.getSourceField())) {
+                    return m.getOutputField();
+                }
+            }
+        }
+        // Fallback: if no mapping found, use the source column name as-is (SELECT * case)
+        return sourceColumn;
+    }
+
     private Object assembleTree(String rootNodeCode,
                                  Map<String, DatasetNode> nodeMap,
                                  Map<String, List<Map<String, Object>>> nodeResults,
-                                 List<DatasetNodeRelation> relations) {
+                                 List<DatasetNodeRelation> relations,
+                                 Map<String, List<DatasetFieldMapping>> allNodeMappings) {
         List<Map<String, Object>> rootRows = nodeResults.get(rootNodeCode);
         if (rootRows == null || rootRows.isEmpty()) return List.of();
 
@@ -502,7 +570,7 @@ public class DatasetExecutionService {
         for (Map<String, Object> rootRow : rootRows) {
             Map<String, Object> enriched = new LinkedHashMap<>(rootRow);
             nestChildren(enriched, rootNodeCode, nodeMap, nodeResults,
-                    parentChildRelations);
+                    parentChildRelations, allNodeMappings);
             result.add(enriched);
         }
         return result;
@@ -511,7 +579,8 @@ public class DatasetExecutionService {
     private void nestChildren(Map<String, Object> parentRow, String parentNodeCode,
                                Map<String, DatasetNode> nodeMap,
                                Map<String, List<Map<String, Object>>> nodeResults,
-                               Map<String, List<DatasetNodeRelation>> parentChildRelations) {
+                               Map<String, List<DatasetNodeRelation>> parentChildRelations,
+                               Map<String, List<DatasetFieldMapping>> allNodeMappings) {
         List<DatasetNodeRelation> childRels = parentChildRelations.get(parentNodeCode);
         if (childRels == null) return;
 
@@ -526,10 +595,16 @@ public class DatasetExecutionService {
             // Filter child rows matching parent key
             List<Map<String, Object>> matchedRows;
             if (rel.getParentJoinColumn() != null && rel.getChildJoinColumn() != null) {
-                Object parentKeyVal = getValueCaseInsensitive(parentRow, rel.getParentJoinColumn());
+                // Resolve join columns to output field names
+                String parentLookupKey = resolveOutputFieldName(
+                        rel.getParentNodeCode(), rel.getParentJoinColumn(), allNodeMappings);
+                String childLookupKey = resolveOutputFieldName(
+                        rel.getChildNodeCode(), rel.getChildJoinColumn(), allNodeMappings);
+
+                Object parentKeyVal = getValueCaseInsensitive(parentRow, parentLookupKey);
                 matchedRows = new ArrayList<>();
                 for (Map<String, Object> childRow : childRows) {
-                    Object childKeyVal = getValueCaseInsensitive(childRow, rel.getChildJoinColumn());
+                    Object childKeyVal = getValueCaseInsensitive(childRow, childLookupKey);
                     if (parentKeyVal != null && parentKeyVal.toString().equals(
                             childKeyVal != null ? childKeyVal.toString() : "")) {
                         matchedRows.add(childRow);
@@ -543,7 +618,8 @@ public class DatasetExecutionService {
             List<Map<String, Object>> nestedRows = new ArrayList<>();
             for (Map<String, Object> childRow : matchedRows) {
                 Map<String, Object> enriched = new LinkedHashMap<>(childRow);
-                nestChildren(enriched, childCode, nodeMap, nodeResults, parentChildRelations);
+                nestChildren(enriched, childCode, nodeMap, nodeResults, parentChildRelations,
+                        allNodeMappings);
                 nestedRows.add(enriched);
             }
 
